@@ -256,6 +256,7 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
         self._store[tuple(keys)] = set(value_set)
 
     def remove(self, *keys, value: VT):
+        "Can raise `KeyError`."
         if len(keys) != self.depth:
             raise KeyError
 
@@ -310,3 +311,30 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
         if not self._cache_valid:
             self._populate_from_sql()
         return tuple(keys) in self._store
+
+
+def str_to_time_d(time_str: str) -> int:
+    match time_str.split(":"):
+        case [seconds]:
+            return int(seconds)
+        case [minutes, seconds]:
+            return int(minutes) * 60 + int(seconds)
+        case [hours, minutes, seconds]:
+            return int(hours) * 3600 + int(minutes) * 60 + int(seconds)
+        case _:
+            raise ValueError
+
+def str_to_time(time_str: str) -> int:
+    "If hours supplied, return today + hours. Otherwise, accept as timestamp"
+    if ":" in time_str:
+        hours = str_to_time_d(time_str)
+        today_start_st = time.gmtime()
+        today_start = time.mktime(today_start_st[:3] + (0,0,0) + today_start_st[6:])
+        return hours + int(today_start)
+    else:
+        return int(time_str)
+
+
+if __name__ == "__main__":
+    t = str_to_time("12:03:00")
+    print(t)
