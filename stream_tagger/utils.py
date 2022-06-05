@@ -1,12 +1,13 @@
+import asyncio as aio
 import sqlite3
-from typing import Callable, Collection, Hashable, TypeVar
+from typing import AsyncGenerator, Callable, Collection, Generator, Hashable, TypeVar
 import logging
 import time
 from collections.abc import MutableMapping
 from ast import literal_eval
 
 
-logger = logging.getLogger("clipping.bot")
+logger = logging.getLogger("taggerbot.utils")
 
 assigned_table_names = set()
 
@@ -333,6 +334,76 @@ def str_to_time(time_str: str) -> int:
         return hours + int(today_start)
     else:
         return int(time_str)
+
+
+class ExpBackoff:
+    def __init__(self, backoff=2, cooldown = 0.9):
+        self.backoff_factor = backoff
+        self.cooldown_factor = cooldown
+        self.current_wait = 0
+
+    def backoff(self):
+        if self.current_wait == 0:
+            self.current_wait = 1
+        else:
+            self.current_wait *= self.backoff_factor
+
+    def cooldown(self):
+        self.current_wait *= self.cooldown_factor
+
+    async def wait(self):
+        if self.current_wait > 0.2:
+            logger.info(f"Current backoff: {self.current_wait:.3f}")
+        await aio.sleep(self.current_wait)
+
+
+# class ConcurrentRatelimit:
+#     def __init__(self) -> None:
+#         self.init_n = 1
+#         self.max_n = self.init_n
+#         self.entered = 0
+#         self.sem_capacity = self.init_n
+#         self._sem = aio.Semaphore(self.init_n)
+#         self._deferred_reset_task: aio.Task | None = None
+#         self._window_rem_count = self.init_n
+
+#     async def _deferred_reset(self, at: float):
+#         n = self.max_n
+#         await aio.sleep(at - time.time())
+#         logger.debug(f"Resetting CRL to {n}")
+#         n_adj = n - self.sem_capacity
+#         if n_adj > 0:
+#             for _ in range(n_adj):
+#                 self._sem.release()
+#         else:
+#             for _ in range(-n_adj):
+#                 self._sem._value -= 1
+#         self.sem_capacity = n
+
+#     def limit(self, n: int, until: float):
+#         self.max_n = max(self.max_n, n)
+
+#         if self._deferred_reset_task:
+#             self._deferred_reset_task.cancel()
+#         self._deferred_reset_task = aio.create_task(self._deferred_reset(until))
+
+#         n_adj = n - self.sem_capacity
+#         if n_adj > 0:
+#             for _ in range(n_adj):
+#                 self._sem.release()
+#         else:
+#             for _ in range(-n_adj):
+#                 self._sem._value -= 1
+#         self.sem_capacity = n
+
+#     async def __aenter__(self):
+#         await self._sem.acquire()
+#         self.entered += 1
+#         logger.debug(f"Entered into CRL: {self.entered} / {self.sem_capacity} ({self._sem._value})")
+
+#     async def __aexit__(self, exc_type, exc, tb):
+#         self._sem.release()
+#         self.entered -= 1
 
 
 if __name__ == "__main__":

@@ -1,2 +1,8 @@
 .venv**
 **.code-workspace
+sample_ytdlp_outputs
+.cookies.txt
+.env
+*.db
+*.pyc
+*.txt

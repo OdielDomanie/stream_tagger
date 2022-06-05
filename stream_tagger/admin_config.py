@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Literal
 
 import discord as dc
+import discord.app_commands as ac
 from discord.ext import commands as cm
 
 from .utils import PersistentSetDict
@@ -14,12 +15,17 @@ class Settings(cm.Cog):
         self.bot = bot
         self.configs = PersistentSetDict(database, "settings", 2)
 
-    @cm.group(name="settings", invoke_without_command=True)
+    @cm.hybrid_group(
+        name="settings",
+        invoke_without_command=True,
+        default_permissions=dc.Permissions(),
+    )
     async def settings(self, ctx: cm.Context[TaggerBot]):
         assert ctx.bot.help_command
         await ctx.bot.help_command.send_group_help(self.settings)
 
-    @settings.command(name="admin add")
+    @settings.command(name="admin add", with_app_command=False)
+    @ac.describe(user_or_role="The user or role to grant permission.")
     async def admin_add(self, ctx: cm.Context, user_or_role: dc.Member | dc.Role):
         'Add a role or user as a bot admin. "Admins" can change bot\'s per-server settings.'
         assert ctx.guild
@@ -28,7 +34,8 @@ class Settings(cm.Cog):
 
         await self.admin_list(ctx)
 
-    @settings.command(name="admin rem")
+    @settings.command(name="admin rem", with_app_command=False)
+    @ac.describe(user_or_role="The user or role to remove permission.")
     async def admin_remove(self, ctx: cm.Context, user_or_role: dc.Member | dc.Role):
         assert ctx.guild
         try:
@@ -38,7 +45,7 @@ class Settings(cm.Cog):
 
         await self.admin_list(ctx)
 
-    @settings.command(name="admin list")
+    @settings.command(name="admin list", with_app_command=False)
     async def admin_list(self, ctx: cm.Context):
         'List members and roles with the "Admin" permission for the bot.'
         assert ctx.guild
@@ -54,6 +61,7 @@ class Settings(cm.Cog):
         )
 
     @settings.command(name="quiet")
+    @ac.describe(be_quiet='"True" for quiet')
     async def quiet(self, ctx: cm.Context, be_quiet: bool):
         "Quiet mode, suitable to be used with another tagger bot. The bot will not post emojis. `False` by default."
         assert ctx.guild
@@ -75,7 +83,8 @@ class Settings(cm.Cog):
         brief="The default format for the tags output.",
     )
     async def default_format(self, ctx: cm.Context[TaggerBot], format: Tag_Formats):
-        """Change the default format of the `tags` command. Possible formats are:
+        """Change the default format of the `tags` command.
+        Possible formats are:
         `classic`,
         `alternative`,
         `yt`,
@@ -92,7 +101,8 @@ class Settings(cm.Cog):
         alias="allow bots",
     )
     async def allow_bots(self, ctx: cm.Context[TaggerBot], allow: bool):
-        "Allow other bots to tag. False by default. `settings allow_bots True` or `False`."
+        """Allow other bots to tag using me. False by default.
+        `settings allow_bots True` or `False`."""
         assert ctx.guild
         self.configs["allow_bots", ctx.guild.id] = (allow,)
         await ctx.send("Set.")
@@ -101,22 +111,27 @@ class Settings(cm.Cog):
         name="tags_limit",
         alias="tags limit",
     )
-    async def fetch_limit(self, ctx: cm.Context[TaggerBot], limit: bool):
+    async def fetch_limit(self, ctx: cm.Context[TaggerBot], limited: bool):
         """Limit the number of tags that can be output at one time,"
         just in case you accidently try to dump more than a thousand tags at once.
         Enabled by default. If that's not enough for you, disable it by
         `settings tags_limit False`."""
         assert ctx.guild
-        self.configs["fetch_limit", ctx.guild.id] = (limit,)
+        self.configs["fetch_limit", ctx.guild.id] = (limited,)
         await ctx.send("Set.")
 
-    @settings.command(
-        name="prefix",
-    )
+    @settings.command(name="prefix", with_app_command=False)
     async def set_prefix(self, ctx: cm.Context[TaggerBot], prefix: str):
         """Set the prefix for commands, like `!`. This doesn't affect the backtick.
         Mentioning me is always a valid prefix."""
         assert ctx.guild
         assert len(prefix) > 0
         self.configs["prefix", ctx.guild.id] = (prefix,)
+        await ctx.send("Set.")
+
+    @settings.command(name="default_offset")
+    async def default_offset(self, ctx: cm.Context, default_offset: int = -20):
+        "Change the default offset applied in this server. Default is -20."
+        assert ctx.guild
+        self.configs["def_offset", ctx.guild.id] = (default_offset,)
         await ctx.send("Set.")

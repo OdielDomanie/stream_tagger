@@ -1,4 +1,4 @@
-from dataclasses import InitVar, dataclass, field, asdict
+from dataclasses import dataclass, asdict
 
 import orjson
 
@@ -12,16 +12,8 @@ class Stream:
     inferred_start: int
     actual_start: int | None
     end_time: int | None
-    info_dict: dict  # type: ignore
-    # info_dict: dict = field(default=None, repr=False)  # type: ignore
+    info_dict: dict
     stream_url_temp: bool = False  # the stream_url is temporary
-    # info_dict_json: bytes = None  # type: ignore
-
-    # def __post_init__(self):
-    #     if self.info_dict_json is None:
-    #         object.__setattr__(self, "info_dict_json", orjson.dumps(self.info_dict))
-    #     if self.info_dict is None:
-    #         object.__setattr__(self, "info_dict", orjson.loads(self.info_dict_json))
 
     @property
     def start_time(self):
