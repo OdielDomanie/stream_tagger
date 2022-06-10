@@ -280,7 +280,7 @@ class Tagging(cm.Cog):
             match opt:
                 case "own":
                     opts_dict["own"] = True
-                case style if style in _Styles:
+                case style if style in _Styles.__members__.keys():
                     opts_dict["style"] = style
                 case start_time if start_time.startswith("start="):
                     opts_dict["start_time"] = str_to_time(start_time[6:])
@@ -320,7 +320,7 @@ class Tagging(cm.Cog):
             return
 
         stolen_stream = False
-        stream_url = opts_dict.get("stream_url")
+        stream_url = opts_dict.pop("stream_url", None)
         if (stream_url == "_" or not stream_url) and not "start_time" in opts_dict:
             if "guild_id" in opts_dict:
                 streams = self.guild_streams.get(opts_dict["guild_id"])
@@ -356,14 +356,16 @@ class Tagging(cm.Cog):
         else:
             def_style: str = list(def_style)[0]
 
+        style = opts_dict.pop("style", def_style)
+
         try:
             tag_dump = await self.dump_tags_from_stream(
                 guild_id,
                 stream_url=stream_url,
-                style=opts_dict.get("style", def_style),
-                author_id=author.id if opts_dict.get("own") else None,
-                start_time=opts_dict.get("start_time"),
-                duration=opts_dict.get("duration"),
+                style=style,
+                author_id=author.id if opts_dict.pop("own", None) else None,
+                start_time=opts_dict.pop("start_time", None),
+                duration=opts_dict.pop("duration", None),
                 **opts_dict,
             )
         except ValueError:
@@ -381,11 +383,11 @@ class Tagging(cm.Cog):
             assert ctx_it.guild
             self.guild_streams.add(ctx_it.guild.id, value=stream)
 
-        if opts_dict.get("style") in ("yt-text", "csv"):
+        if style in ("yt-text", "csv"):
             txt_f = dc.File(
                 BytesIO(bytes(tags_text, encoding="utf-8")),
                 stream.stream_url + ".txt"
-                if opts_dict.get("style") == "yt-text"
+                if style == "yt-text"
                 else ".csv",
             )
             msg = await send(file=txt_f)
@@ -504,7 +506,7 @@ class Tagging(cm.Cog):
         lines = list[str]()
 
         tags_per_minute = len(tags) / (end - start) * 60
-        header_text = f"{stream_url or float:d} <t:{start}:f> {len(tags)} tags ({tags_per_minute:.1f}/min)"
+        header_text = f"{stream_url or ''} <t:{start}:f> {len(tags)} tags ({tags_per_minute:.1f}/min)"
         if style != "yt":
             lines.append(header_text)
 

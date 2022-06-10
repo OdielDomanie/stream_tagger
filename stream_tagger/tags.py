@@ -89,7 +89,7 @@ class TagDatabase:
         if author_id:
             cur.execute(
                 f"""SELECT timestamp_, message, votes, msg_id FROM {self.TABLE_NAME}
-                WHERE guild_id=? AND timestamp_ BETWEEN ? AND ? AND author=?
+                WHERE guild=? AND timestamp_ BETWEEN ? AND ? AND author=?
                 AND (hidden IS FALSE OR hidden=?)
                 ORDER BY timestamp_ DESC LIMIT {limit}""",
                 (guild_id, start, end, author_id, show_hidden),
@@ -97,7 +97,7 @@ class TagDatabase:
         else:
             cur.execute(
                 f"""SELECT timestamp_, message, votes, msg_id FROM {self.TABLE_NAME}
-                WHERE guild_id=? AND timestamp_ BETWEEN ? AND ?
+                WHERE guild=? AND timestamp_ BETWEEN ? AND ?
                 AND (hidden IS FALSE OR hidden=?)
                 ORDER BY timestamp_ DESC LIMIT {limit}""",
                 (guild_id, start, end, show_hidden),
