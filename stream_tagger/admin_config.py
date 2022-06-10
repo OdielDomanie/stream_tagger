@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
 import discord as dc
 import discord.app_commands as ac
@@ -11,16 +11,22 @@ if TYPE_CHECKING:
 
 
 class Settings(cm.Cog):
-    def __init__(self, bot: TaggerBot, database: str) -> None:
+    def __init__(
+        self, bot: "TaggerBot", database: str, check: Callable[[cm.Context], bool]
+    ) -> None:
         self.bot = bot
         self.configs = PersistentSetDict(database, "settings", 2)
+        self.__check = check
+
+    def cog_check(self, ctx: cm.Context["TaggerBot"]) -> bool:
+        return self.__check(ctx)
 
     @cm.hybrid_group(
         name="settings",
         invoke_without_command=True,
         default_permissions=dc.Permissions(),
     )
-    async def settings(self, ctx: cm.Context[TaggerBot]):
+    async def settings(self, ctx: cm.Context["TaggerBot"]):
         assert ctx.bot.help_command
         await ctx.bot.help_command.send_group_help(self.settings)
 
@@ -82,7 +88,7 @@ class Settings(cm.Cog):
         alias="default format",
         brief="The default format for the tags output.",
     )
-    async def default_format(self, ctx: cm.Context[TaggerBot], format: Tag_Formats):
+    async def default_format(self, ctx: cm.Context["TaggerBot"], format: Tag_Formats):
         """Change the default format of the `tags` command.
         Possible formats are:
         `classic`,
@@ -100,7 +106,7 @@ class Settings(cm.Cog):
         name="allow_bots",
         alias="allow bots",
     )
-    async def allow_bots(self, ctx: cm.Context[TaggerBot], allow: bool):
+    async def allow_bots(self, ctx: cm.Context["TaggerBot"], allow: bool):
         """Allow other bots to tag using me. False by default.
         `settings allow_bots True` or `False`."""
         assert ctx.guild
@@ -111,7 +117,7 @@ class Settings(cm.Cog):
         name="tags_limit",
         alias="tags limit",
     )
-    async def fetch_limit(self, ctx: cm.Context[TaggerBot], limited: bool):
+    async def fetch_limit(self, ctx: cm.Context["TaggerBot"], limited: bool):
         """Limit the number of tags that can be output at one time,"
         just in case you accidently try to dump more than a thousand tags at once.
         Enabled by default. If that's not enough for you, disable it by
@@ -121,7 +127,7 @@ class Settings(cm.Cog):
         await ctx.send("Set.")
 
     @settings.command(name="prefix", with_app_command=False)
-    async def set_prefix(self, ctx: cm.Context[TaggerBot], prefix: str):
+    async def set_prefix(self, ctx: cm.Context["TaggerBot"], prefix: str):
         """Set the prefix for commands, like `!`. This doesn't affect the backtick.
         Mentioning me is always a valid prefix."""
         assert ctx.guild

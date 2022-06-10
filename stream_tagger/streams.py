@@ -149,7 +149,8 @@ async def update_channels_list():
         )
 
         cur.execute("SELECT last_update_ts FROM 'last_update'")
-        last_update_ts = int((cur.fetchone() and cur.fetchone()[0]) or 0)
+        fetch = cur.fetchone()
+        last_update_ts = int((fetch and fetch[0]) or 0)
         sleep_for = UPDATE_INTV - (time.time() - last_update_ts)
 
         await aio.sleep(sleep_for)

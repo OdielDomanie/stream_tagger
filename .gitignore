@@ -7,3 +7,5 @@ sample_ytdlp_outputs
 *.pyc
 *.txt
 tests/*
+.vscode/*
+*.log

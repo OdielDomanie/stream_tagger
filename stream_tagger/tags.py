@@ -10,6 +10,7 @@ class TagDatabase:
         self.con = sqlite3.connect(
             self.database_name, detect_types=sqlite3.PARSE_DECLTYPES
         )
+        self._create_table()
 
     def _create_table(self):
         cur = self.con.cursor()
@@ -34,7 +35,7 @@ class TagDatabase:
         time = int(time)
         cur = self.con.cursor()
         cur.execute(
-            f"INSERT INTO {self.TABLE_NAME} VALUES (?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {self.TABLE_NAME} VALUES (?, ?, ?, ?, 0, ?, ?)",
             (msg_id, guild_id, time, text, author_id, hidden),
         )
         self.con.commit()
