@@ -135,3 +135,20 @@ class Settings(cm.Cog):
         assert ctx.guild
         self.configs["def_offset", ctx.guild.id] = (default_offset,)
         await ctx.send("Set.")
+
+    @settings.command(name="set_private")
+    async def set_private(self, ctx: cm.Context, private: bool):
+        'Mark this text channel as private: Other servers can\'t "steal" the future tags made in this channel.'
+        assert ctx.guild
+        if private:
+            self.configs.add(("private_txtchn", ctx.guild.id), value=ctx.channel.id)
+            await ctx.send("Marked as private.")
+        else:
+            try:
+                self.configs.remove(
+                    ("private_txtchn", ctx.guild.id), value=ctx.channel.id
+                )
+            except KeyError:
+                await ctx.send("Already not private.")
+            else:
+                await ctx.send("Set to non-private.")

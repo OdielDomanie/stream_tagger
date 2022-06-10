@@ -21,8 +21,8 @@ from .streams import (
     get_all_chns_from_name,
     get_stream,
     update_channels_list,
-    get_chns_from_name,
 )
+from .tags import TagDatabase
 from .utils import PersistentSetDict, str_to_time, str_to_time_d
 
 
@@ -47,8 +47,6 @@ class TaggerBot(cm.Bot):
 
         self.tags = TagDatabase(database)
 
-        # {stream_url (perm) : {guild_id}}
-        # self.stream_guilds = PersistentSetDict[int](database, "stream_guilds", 1)
         # {txtchn_id: {msg}
         self.last_dump = dict[int, set[dc.Message | dc.Interaction]]()
         # {guild_id: {stream}}
@@ -103,7 +101,12 @@ class TaggerBot(cm.Bot):
         def_offset = self.settings.configs.get(("def_offset",))
         offset = list(def_offset)[0] if def_offset else DEFAULT_OFFSET
         adjusted_ts = msg.created_at.timestamp() + offset
-        self.tags.tag(msg.id, msg.guild.id, adjusted_ts, text, author_id)
+
+        hidden = msg.channel.id in self.settings.configs.get(
+            ("private_txtchn", msg.guild.id), ()
+        )
+
+        self.tags.tag(msg.id, msg.guild.id, adjusted_ts, text, author_id, hidden=hidden)
 
     ### tag command
     @cm.command(name="tag", aliases=["t"])  # type: ignore
@@ -115,7 +118,9 @@ class TaggerBot(cm.Bot):
     async def adjust(self, ctx: cm.Context, amount: int):
         "Adjust time of the last tag."
         assert ctx.guild
-        last_tags = self.tags.get_tags(ctx.guild.id, 0, time.time() + 26*60*60, ctx.author.id, limit=1)
+        last_tags = self.tags.get_tags(
+            ctx.guild.id, 0, time.time() + 26 * 60 * 60, ctx.author.id, limit=1
+        )
         if last_tags:
             og_ts, msg_id = last_tags[0][0], last_tags[0][3]
             self.tags.update_time(msg_id, og_ts + amount)
@@ -501,7 +506,7 @@ class TaggerBot(cm.Bot):
             style,
             author_id,
             url_is_perm=url_is_perm,
-            offset = opts_dict.get("offset", 0)
+            offset=opts_dict.get("offset", 0),
         )
         if not tags_text:
             return
@@ -619,106 +624,3 @@ def timestamp_link(stream_url: str, t: float) -> str:
         return stream_url + f"?t={int(t)}s"
     else:
         return stream_url + f"&t={int(t)}s"
-
-
-class TagDatabase:
-
-    TABLE_NAME = "tags"
-
-    def __init__(self, database_name: str) -> None:
-        self.database_name = database_name
-        self.con = sqlite3.connect(
-            self.database_name, detect_types=sqlite3.PARSE_DECLTYPES
-        )
-
-    def _create_table(self):
-        cur = self.con.cursor()
-        cur.execute(
-            f"CREATE TABLE IF NOT EXISTS '{self.TABLE_NAME}'"
-            " (msg_id INT PRIMARY KEY, guild INT, timestamp_ INT, message TEXT, votes INT, author INT)"
-        )
-        cur.execute(
-            f"CREATE INDEX IF NOT EXISTS '{self.TABLE_NAME}_gt_index' on '{self.TABLE_NAME}' (guild, timestamp_)"
-        )
-        cur.execute(
-            f"CREATE INDEX IF NOT EXISTS '{self.TABLE_NAME}_t_index' on '{self.TABLE_NAME}' (timestamp_)"
-        )
-        self.con.commit()
-
-    def tag(self, msg_id: int, guild_id: int, time: float, text: str, author_id: int):
-        time = int(time)
-        cur = self.con.cursor()
-        cur.execute(
-            f"INSERT INTO {self.TABLE_NAME} VALUES (?, ?, ?, ?, ?)",
-            (msg_id, guild_id, time, text, author_id),
-        )
-        self.con.commit()
-
-    def update_text(self, msg_id: int, text: str):
-        cur = self.con.cursor()
-        cur.execute(
-            f"UPDATE {self.TABLE_NAME} SET text=? WHERE ?=msg_id",
-            (text, msg_id),
-        )
-        self.con.commit()
-
-    def update_time(self, msg_id: int, time: float):
-        time = int(time)
-        cur = self.con.cursor()
-        cur.execute(
-            f"UPDATE {self.TABLE_NAME} SET timestamp_=? WHERE ?=msg_id",
-            (time, msg_id),
-        )
-        self.con.commit()
-
-    def increment_vote(self, msg_id: int, add=1):
-        cur = self.con.cursor()
-        cur.execute(
-            f"UPDATE {self.TABLE_NAME} SET votes = votes+? WHERE msg_id = ?",
-            (add, msg_id),
-        )
-        self.con.commit()
-
-    def remove(self, msg_id: int):
-        cur = self.con.cursor()
-        cur.execute(
-            f"DELETE {self.TABLE_NAME} WHERE msg_id = ?",
-            (msg_id,),
-        )
-        self.con.commit()
-
-    def get_tags(
-        self,
-        guild_id: int,
-        start: float,
-        end: float,
-        author_id: int | None = None,
-        limit: int = 1_000,
-    ) -> list[tuple[int, str, int, int]]:
-        "Returns a list of tuples of timestamp, text, votes, and msg_id."
-        start, end = int(start), int(end)
-        cur = self.con.cursor()
-        assert isinstance(limit, int)
-        if author_id:
-            cur.execute(
-                f"SELECT timestamp_, message, votes, msg_id FROM {self.TABLE_NAME}"
-                " WHERE guild_id=? AND timestamp_ BETWEEN ? AND ? AND author=?"
-                f" ORDER BY timestamp_ DESC LIMIT {limit}",
-                (guild_id, start, end, author_id),
-            )
-        else:
-            cur.execute(
-                f"SELECT timestamp_, message, votes, msg_id FROM {self.TABLE_NAME}"
-                " WHERE guild_id=? AND timestamp_ BETWEEN ? AND ?"
-                f" ORDER BY timestamp_ DESC LIMIT {limit}",
-                (guild_id, start, end),
-            )
-        return list(cur)
-
-    def __contains__(self, msg_id: int):
-        cur = self.con.cursor()
-        cur.execute(f"SELECT FROM {self.TABLE_NAME} WHERE msg_id=?", (msg_id,))
-        return bool(cur.fetchone())
-
-    def __del__(self):
-        self.con.close()
