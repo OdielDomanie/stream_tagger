@@ -6,3 +6,4 @@ sample_ytdlp_outputs
 *.db
 *.pyc
 *.txt
+tests/*
