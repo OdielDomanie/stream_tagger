@@ -24,7 +24,7 @@ class Stream:
             if self.stream_id:
                 return self.stream_id == __o.stream_id
             else:
-                return self is __o
+                return self.__dict__ == __o.__dict__
         else:
             return NotImplemented
 

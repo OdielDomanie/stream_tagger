@@ -8,16 +8,26 @@ import yt_dlp as ytdl
 
 logger = logging.getLogger("stream_extractor")
 
+
 class RateLimited(Exception):
     pass
 
 
-def fetch_yt_metadata(url: str, no_playlist=True, playlist_items: Iterable[int] = [0]) -> Mapping | None:
+class PayWalled(Exception):
+    pass
+
+
+def fetch_yt_metadata(
+    url: str, no_playlist=True, playlist_items: Iterable[int] = [0]
+) -> Mapping | None:
     """Fetches metadata of url.
-    Returns `info_dict`, or `None` if no vid/stream found live. Can raise `RateLimited`.
+    Returns `info_dict`, or `None` if no vid/stream found live.
+    Can raise `RateLimited` or PayWalled.
     """
+    logger.info(f"yt-dl query for: {url, no_playlist, playlist_items}")
 
     ytdl_logger = logging.getLogger("ytdl_fetchinfo")
+    ytdl_logger.propagate = False
     ytdl_logger.addHandler(logging.NullHandler())  # f yt-dl logs
 
     # options referenced from
@@ -43,14 +53,13 @@ def fetch_yt_metadata(url: str, no_playlist=True, playlist_items: Iterable[int] 
             info_dict: Mapping = ydl.extract_info(url, download=False)
     except ytdl.utils.DownloadError as e:
         # "<channel_name> is offline error is possible in twitch
-        if (
-            "This live event will begin in" in e.args[0]
-            or "is offline" in e.args[0]
-        ):
+        if "This live event will begin in" in e.args[0] or "is offline" in e.args[0]:
             logger.debug(e)
         elif "HTTP Error 429" in e.args[0]:
-            logger.critical(f"Got \"{e}\", for {url}.")
+            logger.critical(f'Got "{e}", for {url}.')
             raise RateLimited
+        elif "members-only" in e.args[0].lower() or "private" in e.args[0].lower():
+            raise PayWalled()
         else:
             logger.error(f"{e}, for {url}.")
 

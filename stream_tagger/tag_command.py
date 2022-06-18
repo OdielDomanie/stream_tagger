@@ -1,5 +1,6 @@
 import asyncio as aio
 import enum
+import itertools
 import logging
 import math
 import random
@@ -16,7 +17,7 @@ from . import DEFAULT_OFFSET, EMBED_COLOR
 from .help_strings import tags_desc
 from .stream import Stream, stream_dump, stream_load
 from .streams import get_all_chns_from_name, get_stream
-from .tags import TagDatabase
+from .tags import Tag_t, TagDatabase
 from .utils import PersistentSetDict, str_to_time, str_to_time_d
 
 if TYPE_CHECKING:
@@ -26,13 +27,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger("taggerbot.tagging")
 
 
-class _Styles(enum.Enum):
+class TagStyles(enum.Enum):
     classic = "classic"
     yt = "yt"
     yt_text = "yt-text"
     alternative = "alternative"
     info = "info"
     csv = "csv"
+
+
+DEF_STYLE = "alternative"
 
 
 class Tagging(cm.Cog):
@@ -49,10 +53,18 @@ class Tagging(cm.Cog):
             database, "guild_streams", 1, dump_v=stream_dump, load_v=stream_load
         )
 
-    async def tag(self, msg: dc.Message, text: str, author_id: int):
+    async def tag(self, msg: dc.Message, text: str, author_id: int, hierarchy=0):
         assert msg.guild
 
-        if True in self.configs.get(("quiet", msg.guild.id), []):
+        # hierarchy from first character as number
+        # try:
+        #     hierarchy = int(text[0])
+        # except ValueError:
+        #     pass
+        # else:
+        #     text = text[1:]
+
+        if all(self.configs.get(("quiet", msg.guild.id), ())):
             # Permissions: read message history, add reactions
             try:
                 await aio.gather(msg.add_reaction("⭐"), msg.add_reaction("❌"))
@@ -67,7 +79,15 @@ class Tagging(cm.Cog):
             ("private_txtchn", msg.guild.id), ()
         )
 
-        self.tags.tag(msg.id, msg.guild.id, adjusted_ts, text, author_id, hidden=hidden)
+        self.tags.tag(
+            msg.id,
+            msg.guild.id,
+            adjusted_ts,
+            text,
+            author_id,
+            hidden=hidden,
+            hierarchy=hierarchy,
+        )
 
     ### tag command
     @cm.command(name="tag", aliases=["t"])  # type: ignore
@@ -108,7 +128,20 @@ class Tagging(cm.Cog):
         if message.author.bot and not message.guild:
             return
         if message.content.startswith("`"):
-            await self.tag(message, message.content[1:], message.author.id)
+
+            ticks = 0
+            spaces = 0
+            for c in message.content:
+                if c == "`":
+                    ticks += 1
+                elif c == " ":
+                    spaces += 1
+                else:
+                    break
+
+            await self.tag(
+                message, message.content[ticks + spaces :], message.author.id, hierarchy=ticks - 1
+            )
 
     ### edit a tag
     @cm.Cog.listener()
@@ -137,6 +170,9 @@ class Tagging(cm.Cog):
 
     ### remove vote
     @cm.Cog.listener()
+    # async def on_raw_reaction_clear_emoji(self, payload: dc.RawReactionClearEmojiEvent):
+    #     if payload.emoji == "⭐" and payload.message_id in self.tags:
+    #         self.tags.increment_vote(payload.message_id, -1)
     async def on_reaction_remove(
         self, reaction: dc.Reaction, user: dc.Member | dc.User
     ):
@@ -221,7 +257,7 @@ class Tagging(cm.Cog):
         stream: Optional[str],
         start_time: Optional[str],
         duration: Optional[str],
-        style: Optional[_Styles],
+        style: Optional[TagStyles],
         server: Optional[str],
         own: Optional[bool],
         delete_last: Optional[bool],
@@ -251,7 +287,14 @@ class Tagging(cm.Cog):
             options.append("delete")
         options.append(f"offset={offset}")
 
-        await self.tags_hybrid(it, *options)
+        await it.response.defer(thinking=True)
+        try:
+            await self.tags_hybrid(it, *options)
+        except:
+            await it.followup.send(
+                "Something went wrong, I couldn't do it 😖", ephemeral=True
+            )
+            raise
 
     ### dump tags
     @cm.command(name="tags", description=tags_desc)
@@ -266,7 +309,7 @@ class Tagging(cm.Cog):
         "Dump the tags for a given stream url. See `help tags` for full options."
 
         if isinstance(ctx_it, dc.Interaction):
-            send = ctx_it.response.send_message
+            send = ctx_it.followup.send
             author = ctx_it.user
         else:
             send = ctx_it.send
@@ -280,7 +323,7 @@ class Tagging(cm.Cog):
             match opt:
                 case "own":
                     opts_dict["own"] = True
-                case style if style in _Styles.__members__.keys():
+                case style if style in TagStyles.__members__.keys():
                     opts_dict["style"] = style
                 case start_time if start_time.startswith("start="):
                     opts_dict["start_time"] = str_to_time(start_time[6:])
@@ -306,6 +349,8 @@ class Tagging(cm.Cog):
                     offset = int(offset[7:])
                     opts_dict["offset"] = offset
                 case stream_url:
+                    if stream_url.startswith("<") and stream_url.endswith(">"):
+                        stream_url = stream_url[1:-1]
                     opts_dict["stream_url"] = stream_url
 
         # If the command was called to delete the last dump, instead of a dump.
@@ -352,7 +397,7 @@ class Tagging(cm.Cog):
 
         def_style_set = self.bot.settings.configs.get(("def_format", guild_id))
         if not def_style_set:
-            def_style = "classic"
+            def_style = DEF_STYLE
         else:
             def_style: str = list(def_style)[0]
 
@@ -386,22 +431,20 @@ class Tagging(cm.Cog):
         if style in ("yt-text", "csv"):
             txt_f = dc.File(
                 BytesIO(bytes(tags_text, encoding="utf-8")),
-                stream.stream_url + ".txt"
-                if style == "yt-text"
-                else ".csv",
+                stream.stream_url + ".txt" if style == "yt-text" else ".csv",
             )
             msg = await send(file=txt_f)
             self.last_dump[ctx_it.channel.id] = {msg or ctx_it}  # type: ignore
             return
 
         embed_texts: list[str] = []
+        embed_text = ""
         for line in tags_text.splitlines(keepends=True):
-            embed_text = ""
-            while True:
-                if len(embed_text) + len(line) >= 4096:  # discord embed character limit
-                    embed_texts.append(embed_text)
-                    break
-                embed_text += line
+            if len(embed_text) + len(line) >= 6000:  # discord embed character limit
+                embed_texts.append(embed_text)
+                embed_text = ""
+            embed_text += line
+        embed_texts.append(embed_text)
 
         embeds = [
             dc.Embed(color=EMBED_COLOR, description=embed_text)
@@ -439,8 +482,11 @@ class Tagging(cm.Cog):
         """
 
         if stream_url:
-            stream: Stream = await get_stream(stream_url)
-            real_url = stream.stream_url_temp and stream.stream_url
+            try:
+                stream: Stream = await get_stream(stream_url)
+            except AssertionError as e:
+                raise ValueError from e
+            real_url = not stream.stream_url_temp and stream.stream_url
             start_time_ = stream.start_time
             end_time = stream.end_time or time.time()
             url_is_perm = not stream.stream_url_temp
@@ -512,48 +558,111 @@ class Tagging(cm.Cog):
 
         match style:
             case "classic":
-                for ts, text, vote, _ in tags:
+                for ts, text, vote, _, _ in tags:
                     ts += offset
+                    relative_ts = ts - start
                     line = (
-                        text
-                        + f"({vote})"
+                        text + f" ({vote})"
+                        if vote
+                        else ""
                         + (
-                            f" [{td_to_str(ts)}]({timestamp_link(stream_url, ts)})"
+                            f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)})"
                             if stream_url and url_is_perm
-                            else f" {td_to_str(ts)}"
+                            else f" {td_to_str(relative_ts)}"
                         )
                     )
                     lines.append(line)
-            case "yt" | "yt-text":
-                for ts, text, vote, _ in tags:
-                    ts += offset
-                    escaped_text = discord.utils.remove_markdown(text)
-                    line = f"{td_to_str(ts, 'yt')} {text}"
-                    lines.append(line)
             case "csv":
-                for ts, text, vote, _ in tags:
+                for ts, text, vote, _, _ in tags:
                     ts += offset
+                    relative_ts = ts - start
                     escaped_text = '"' + text.replace('"', '""') + '"'
-                    line = ",".join((str(ts), escaped_text, str(vote)))
+                    line = ",".join((str(relative_ts), escaped_text, str(vote)))
                     lines.append(line)
             case "info":
                 pass
-            case "alternative":
-                avg_votes = sum(vote for _, _, vote, _ in tags) / len(tags)
+            case "alternative" | "yt" | "yt-text":
+                avg_votes = sum(tag.vote for tag in tags) / len(tags)
                 adjusted_stars = lambda v: round(
                     math.log(round(v / (avg_votes + 1)) + 1, 2)  # visually cool
                 )
-                for ts, text, vote, _ in tags:
-                    ts += offset
-                    line = (
-                        (
-                            f" [{td_to_str(ts)}]({timestamp_link(stream_url, ts)})"
-                            if stream_url and url_is_perm
-                            else f" {td_to_str(ts)}"
+                max_h = max(tag.hier for tag in tags)
+                # if max_h == 0:
+                #     for ts, text, vote, _, _ in tags:
+                #         ts += offset
+                #         relative_ts = ts - start
+                #         if style == "alternative":
+                #             line = (
+                #                 (
+                #                     f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)}) | "
+                #                     if stream_url and url_is_perm
+                #                     else f" {td_to_str(relative_ts)} | "
+                #                 )
+                #                 + text
+                #                 + (
+                #                     f" ({''.join(['⭐'] * adjusted_stars(vote))})"
+                #                     if vote
+                #                     else ""
+                #                 )
+                #             )
+                #         else:
+                #             escaped_text = discord.utils.remove_markdown(text)
+                #             line = f"{td_to_str(relative_ts, 'yt')} {text}"
+                #         lines.append(line)
+                # else:
+                dummy_first = Tag_t(..., ..., ..., ..., tags[0].hier)
+                dummy_last = Tag_t(..., ..., ..., ..., -1)
+                tags_d = list(itertools.chain([dummy_first], tags, [dummy_last]))
+                for i in range(len(tags)):
+                    prev_ind = tags_d[i].hier
+                    tag = tags_d[i + 1]
+                    curr_ind = tag.hier
+                    next_ind = tags_d[i + 2].hier
+                    space_indent = curr_ind - max(curr_ind - prev_ind, 0)
+                    ts = tag.ts + offset
+                    relative_ts = ts - start
+                    if style == "alternative":
+                        line = (
+                            (
+                                f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)}) | "
+                                if stream_url and url_is_perm
+                                else f" {td_to_str(relative_ts)} | "
+                            )
+                            + tag.text
+                            + (
+                                f" ({''.join(['⭐'] * adjusted_stars(tag.vote))})"
+                                if tag.vote
+                                else ""
+                            )
                         )
-                        + text
-                        + f" ({''.join('⭐' for _ in range(adjusted_stars(vote)))})"
-                    )
+                    else:
+                        escaped_text = discord.utils.remove_markdown(tag.text)
+                        line = f"{td_to_str(relative_ts, 'yt')} {tag.text}"
+                    pre = "".join(["⠀"] * space_indent)
+                    if curr_ind == prev_ind <= next_ind:
+                        pre += "├"
+                    elif prev_ind == curr_ind:
+                        pre += "└"
+                    elif prev_ind > curr_ind == next_ind:
+                        pre += "├"
+                    elif prev_ind > curr_ind:
+                        pre += "└"
+                    elif curr_ind == 1 and (curr_ind - prev_ind) == 1 and curr_ind == next_ind:
+                        pre += "└" +  "├"
+                    elif prev_ind < curr_ind == next_ind:
+                        pre += "└" + "".join(["─"] * (curr_ind - prev_ind - 1)) + "┬"
+                    elif curr_ind == 1 and prev_ind == 0 and next_ind != 1:
+                        pre += "└" + "└"
+                    elif prev_ind < curr_ind:
+                        pre += "".join(["─"] * (curr_ind - prev_ind)) + "─"
+                    else:
+                        logger.error(
+                            f"Unhandled hierarchy case: {prev_ind, curr_ind, next_ind}"
+                        )
+                    line = pre + line
+                    line = line[1:]
+                    if line[0] == "─":
+                        line = "└" + line[1:]
                     lines.append(line)
             case _:
                 raise ValueError
@@ -587,6 +696,6 @@ def timestamp_link(stream_url: str, t: float) -> str:
     # Works for at least youtube and twitch.
     stream_url = stream_url.split("#")[0]
     if "?" in stream_url:
-        return stream_url + f"?t={int(t)}s"
-    else:
         return stream_url + f"&t={int(t)}s"
+    else:
+        return stream_url + f"?t={int(t)}s"

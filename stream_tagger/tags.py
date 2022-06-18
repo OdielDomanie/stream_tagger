@@ -1,4 +1,8 @@
+import collections
 import sqlite3
+
+
+Tag_t = collections.namedtuple("tag_t", ("ts", "text", "vote", "msg_id", "hier"))
 
 
 class TagDatabase:
@@ -15,12 +19,24 @@ class TagDatabase:
     def _create_table(self):
         cur = self.con.cursor()
         cur.execute(
-            f"CREATE TABLE IF NOT EXISTS '{self.TABLE_NAME}'"
-            " (msg_id INT PRIMARY KEY, guild INT, timestamp_ INT, message TEXT, votes INT, author INT, hidden BOOL)"
+            f"""CREATE TABLE IF NOT EXISTS '{self.TABLE_NAME}'
+            (msg_id INT PRIMARY KEY, guild INT, timestamp_ INT, message TEXT, votes INT,
+            author INT, hidden BOOL, hierarchy INT)"""
         )
         cur.execute(
             f"CREATE INDEX IF NOT EXISTS '{self.TABLE_NAME}_gt_index' on '{self.TABLE_NAME}' (guild, timestamp_)"
         )
+        self.con.commit()
+
+        # Migration
+        CURRENT_VERSION = 2
+        cur = self.con.cursor()
+        cur.execute("PRAGMA user_version")
+        version = cur.fetchall()[0][0]  # 0 if version is not set (new table)
+        if version != 0 and version < CURRENT_VERSION:
+            cur.execute(f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN hierarchy INT DEFAULT 0")
+
+        cur.execute(f"PRAGMA user_version={CURRENT_VERSION}")
         self.con.commit()
 
     def tag(
@@ -31,12 +47,13 @@ class TagDatabase:
         text: str,
         author_id: int,
         hidden=False,
+        hierarchy=0
     ):
         time = int(time)
         cur = self.con.cursor()
         cur.execute(
-            f"INSERT INTO {self.TABLE_NAME} VALUES (?, ?, ?, ?, 0, ?, ?)",
-            (msg_id, guild_id, time, text, author_id, hidden),
+            f"INSERT INTO {self.TABLE_NAME} VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
+            (msg_id, guild_id, time, text, author_id, hidden, hierarchy),
         )
         self.con.commit()
 
@@ -68,7 +85,7 @@ class TagDatabase:
     def remove(self, msg_id: int):
         cur = self.con.cursor()
         cur.execute(
-            f"DELETE {self.TABLE_NAME} WHERE msg_id = ?",
+            f"DELETE FROM {self.TABLE_NAME} WHERE msg_id = ?",
             (msg_id,),
         )
         self.con.commit()
@@ -81,33 +98,36 @@ class TagDatabase:
         author_id: int | None = None,
         limit: int = 1_000,
         show_hidden=False,
-    ) -> list[tuple[int, str, int, int]]:
-        "Returns a list of tuples of timestamp, text, votes, and msg_id."
+    ) -> list[Tag_t]: #list[tuple[int, str, int, int, int]]:
+        "Returns a list of tuples of timestamp, text, votes, msg_id, and hierarchy."
         start, end = int(start), int(end)
         cur = self.con.cursor()
         assert isinstance(limit, int)
         if author_id:
             cur.execute(
-                f"""SELECT timestamp_, message, votes, msg_id FROM {self.TABLE_NAME}
+                f"""SELECT timestamp_, message, votes, msg_id, hierarchy FROM {self.TABLE_NAME}
                 WHERE guild=? AND timestamp_ BETWEEN ? AND ? AND author=?
                 AND (hidden IS FALSE OR hidden=?)
-                ORDER BY timestamp_ DESC LIMIT {limit}""",
+                ORDER BY timestamp_ LIMIT {limit}""",
                 (guild_id, start, end, author_id, show_hidden),
             )
         else:
             cur.execute(
-                f"""SELECT timestamp_, message, votes, msg_id FROM {self.TABLE_NAME}
+                f"""SELECT timestamp_, message, votes, msg_id, hierarchy FROM {self.TABLE_NAME}
                 WHERE guild=? AND timestamp_ BETWEEN ? AND ?
                 AND (hidden IS FALSE OR hidden=?)
-                ORDER BY timestamp_ DESC LIMIT {limit}""",
+                ORDER BY timestamp_ LIMIT {limit}""",
                 (guild_id, start, end, show_hidden),
             )
-        return list(cur)
+        return list(Tag_t(*fetch) for fetch in cur.fetchall())
 
     def __contains__(self, msg_id: int):
         cur = self.con.cursor()
-        cur.execute(f"SELECT FROM {self.TABLE_NAME} WHERE msg_id=?", (msg_id,))
+        cur.execute(f"SELECT * FROM {self.TABLE_NAME} WHERE msg_id=?", (msg_id,))
         return bool(cur.fetchone())
 
     def __del__(self):
-        self.con.close()
+        try:
+            self.con.close()
+        except sqlite3.ProgrammingError:
+            pass

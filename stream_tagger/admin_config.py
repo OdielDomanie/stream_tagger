@@ -4,6 +4,7 @@ import discord as dc
 import discord.app_commands as ac
 from discord.ext import commands as cm
 
+from .tag_command import TagStyles
 from .utils import PersistentSetDict
 
 if TYPE_CHECKING:
@@ -74,30 +75,15 @@ class Settings(cm.Cog):
         self.configs["quiet", ctx.guild.id] = (be_quiet,)
         await ctx.send("Set.")
 
-    Tag_Formats = Literal[
-        "classic",
-        "alternative",
-        "yt",
-        "yt-text",
-        "csv",
-        "info",
-    ]
-
     @settings.command(
         name="default_format",
         alias="default format",
         brief="The default format for the tags output.",
     )
-    async def default_format(self, ctx: cm.Context["TaggerBot"], format: Tag_Formats):
-        """Change the default format of the `tags` command.
-        Possible formats are:
-        `classic`,
-        `alternative`,
-        `yt`,
-        `yt-text`,
-        `csv`,
-        `info`,
-        """
+    async def default_format(
+        self, ctx: cm.Context["TaggerBot"], format: TagStyles = TagStyles.classic
+    ):
+        "Change the default format of the `tags` command."
         assert ctx.guild
         self.configs["def_format", ctx.guild.id] = (format,)
         await ctx.send("Set.")

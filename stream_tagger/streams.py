@@ -7,11 +7,12 @@ from typing import Any, Generator, Iterable, Mapping
 from urllib import parse
 
 import aiohttp
+import dateutil.parser
 
 from . import CHANNELS_LIST_DB, HOLODEX_TOKEN
 from .stream import Stream
 from .utils import ExpBackoff, PersistentDict
-from .ytdl_extractor import fetch_yt_metadata
+from .ytdl_extractor import PayWalled, fetch_yt_metadata
 
 
 logger = logging.getLogger("taggerbot.stream_extractor")
@@ -19,7 +20,7 @@ logger = logging.getLogger("taggerbot.stream_extractor")
 
 # {chn_id: ((chn_url,), streamer_name, en_name)}
 channels_list = PersistentDict[str, tuple[tuple[str, ...], str, str | None]](
-    CHANNELS_LIST_DB, "channnels_list"
+    CHANNELS_LIST_DB, "channnels_list", 24*60*60
 )
 
 
@@ -50,7 +51,7 @@ async def holodex_req(
     global _next_req_at
 
     async with __sem[0]:
-    # async with crl:
+        # async with crl:
         while True:
             await _exp_backoff.wait()
             await aio.sleep(_next_req_at - time.time())
@@ -137,6 +138,7 @@ async def populate_channels_list():
 
 UPDATE_INTV = 1 * 24 * 60 * 60
 
+
 async def update_channels_list():
     "Periodically update the channels database."
     while True:
@@ -169,7 +171,9 @@ def get_chns_from_name(
     "return the channel id, channel urls, channel name and en name. Raise KeyError if not found."
     for chn_id, tup in channels_list.items():
         chn_urls, name, en_name = tup
-        if q_name in name or (en_name and q_name in en_name):
+        if q_name.lower() in name.lower() or (
+            en_name and q_name.lower() in en_name.lower()
+        ):
             return chn_id, chn_urls, name, en_name
     raise KeyError()
 
@@ -180,7 +184,9 @@ def get_all_chns_from_name(
     "return the channel id, channel urls, channel name and en name. Raise KeyError if not found."
     for chn_id, tup in channels_list.items():
         chn_urls, name, en_name = tup
-        if q_name in name or (en_name and q_name in en_name):
+        if q_name.lower() in name.lower() or (
+            en_name and q_name.lower() in en_name.lower()
+        ):
             yield chn_id, chn_urls, name, en_name
 
 
@@ -190,8 +196,15 @@ async def _get_stream_idurl(
     """Return a tuple of:
     youtube video id, or stream url for other platforms
     Maybe stream's info_dict.
-    Maybe channel url
+    Maybe channel url.
     """
+
+    # Is it a youtube channel url?
+    if chn_id := re.search(
+        r"(?<=youtube\.com\/channel\/)([a-zA-Z0-9\-_]{24})(?![a-zA-Z0-9\-_])", stream_name
+    ):
+        stream_name = chn_id.group()  # set to channel id
+
     if "." in stream_name:  # a url
         if "youtube.com/watch" in stream_name:
             yt_id = stream_name.split("=")[1]
@@ -208,7 +221,7 @@ async def _get_stream_idurl(
             # is it live
             info_dict = await aio.to_thread(fetch_yt_metadata, stream_name)
             streamer_name = re.search(
-                r"/(?<=\.tv\/)([a-zA-Z0-9\-_]+?)(?!\g<-1>)/gm", stream_name
+                r"(?<=\.tv\/)([a-zA-Z0-9\-_]+?)(?![a-zA-Z0-9\-_])", stream_name
             )
             assert streamer_name
             chn_url = "https://www.twitch.tv/" + streamer_name.group()
@@ -246,20 +259,8 @@ async def _get_stream_idurl(
             else:
                 raise ValueError
 
-    else:  # either a youtube channel id, youtube video id, or vtuber name
-
-        try:
-            chn_id, chn_urls, name, en_nam = get_chns_from_name(stream_name)
-        except KeyError:
-            pass
-        else:
-            for chn in chn_urls:
-                try:
-                    return await _get_stream_idurl(chn)
-                except Exception:
-                    pass
-            raise ValueError
-
+    # either a youtube channel id, or youtube video id
+    else:
         if len(stream_name) == 24:  # chn id
             # try to get stream if live
             base_url = "https://www.youtube.com/channel/" + stream_name
@@ -276,7 +277,7 @@ async def _get_stream_idurl(
             else:  # is not live, get the last was_live vod
                 info_dict = await aio.to_thread(
                     fetch_yt_metadata,
-                    base_url,
+                    base_url + "/videos?view=2&live_view=503",
                     no_playlist=False,
                     playlist_items=range(5),
                 )
@@ -290,11 +291,11 @@ async def _get_stream_idurl(
                         last_live = entry
                         break
                 assert last_live
-                last_entry: Mapping = info_dict["entries"][0]
+                # last_entry: Mapping = info_dict["entries"][0]
                 return (
-                    last_entry["id"],
+                    last_live["id"],
                     "yt",
-                    last_entry,
+                    last_live,
                     "https://www.youtube.com/channel/" + stream_name,
                 )
 
@@ -304,7 +305,33 @@ async def _get_stream_idurl(
             raise ValueError
 
 
-async def get_stream(stream_name: str) -> Stream:
+chn_url_to_id = dict[str, str]()
+
+
+async def get_stream(stream_name: str, *, __recurse=True) -> Stream:
+    "Can raise ValueError"
+
+    # Transform full channel url to a standard id. If not in dict, a fetch will be performed.
+    if stream_name in chn_url_to_id:
+        stream_name = chn_url_to_id[stream_name]
+
+    # Is it a name.
+    try:
+        chn_id, chn_urls, name, en_nam = get_chns_from_name(stream_name)
+    except KeyError:
+        pass
+    else:
+        streams = list[Stream]()
+        for chn in chn_urls:
+            try:
+                streams.append(await get_stream(chn))
+            except (ValueError, AssertionError):
+                pass
+        if not streams:
+            raise ValueError
+        streams.sort(key=lambda s: s.start_time, reverse=True)
+        return streams[0]
+
     id_url, platform, info_dict, chn_url = await _get_stream_idurl(stream_name)
 
     stream_url = (
@@ -313,7 +340,14 @@ async def get_stream(stream_name: str) -> Stream:
 
     # Since yt-dlp is giving us exact actual_start values, we don't need Holodex.
     if not info_dict:
-        info_dict = await aio.to_thread(fetch_yt_metadata, stream_url)
+        try:
+            info_dict = await aio.to_thread(fetch_yt_metadata, stream_url)
+        except PayWalled:
+            # Youtube, members only
+            async with aiohttp.ClientSession() as session:
+                info_dict = await holodex_req(session, "videos/", url_param=stream_url[-11:], query_params={})
+                platform = "holodex"
+
     assert info_dict
 
     if not chn_url:
@@ -321,13 +355,27 @@ async def get_stream(stream_name: str) -> Stream:
             chn_url = stream_url
         elif platform == "ttv_vod":
             chn_url = "https://www.twitch.tv/" + info_dict["uploader_id"]
+        elif platform == "holodex":
+            chn_url = "https://www.youtube.com/channel/" + info_dict["channel"]["id"]
         else:
             chn_url = info_dict["channel_url"]
 
-    start_time: int | None = info_dict.get("timestamp") or info_dict.get(
-        "release_timestamp"
+    start_time: int | str | None = (
+        info_dict.get("timestamp")
+        or info_dict.get("release_timestamp")
+        or info_dict.get("start_actual")
+        or info_dict.get("published_at")
+        or info_dict.get("start_actual")
     )
-    assert start_time
+    if not start_time:  # This may be a channel url (eg short channel name)
+        if "channel_id" in info_dict and __recurse:
+            chn_url_to_id[stream_name] = info_dict["channel_id"]
+            return await get_stream(info_dict["channel_id"], __recurse=False)
+        else:
+            raise ValueError
+
+    if isinstance(start_time, str):
+        start_time = int(dateutil.parser.isoparse(start_time).timestamp())
 
     stream = Stream(
         unique_id=info_dict["id"],

@@ -199,10 +199,8 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
             raise KeyError
         if not self._cache_valid:
             self._populate_from_sql()
-        try:
-            return frozenset(self._store[tuple(keys)])
-        except Exception:
-            return frozenset()
+
+        return frozenset(self._store[tuple(keys)])
 
     def add(self, *keys, value: VT):
         # test validity
