@@ -284,7 +284,7 @@ async def _get_stream_idurl(
                     info_dict["webpage_url"],
                     "unknown",
                     info_dict,
-                    info_dict["channel_url"],
+                    info_dict.get("channel_url") or info_dict.get("webpage_url"),
                 )
             else:
                 raise ValueError
@@ -447,6 +447,6 @@ async def get_stream(stream_name: str, *, __recurse=True) -> Stream:
         actual_start=start_time,
         end_time=(dur := info_dict.get("duration")) and dur + start_time,
         info_dict=dict(info_dict),
-        stream_url_temp=platform == "ttv_live",
+        stream_url_temp=platform in ("ttv_live", "unknown"),
     )
     return stream
