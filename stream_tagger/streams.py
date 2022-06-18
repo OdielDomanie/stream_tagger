@@ -304,21 +304,57 @@ async def _get_stream_idurl(
                 )
 
             else:  # is not live, get the last was_live vod
-                info_dict = await aio.to_thread(
+                info_dict_ls = await aio.to_thread(
                     fetch_yt_metadata,
                     base_url + "/videos?view=2&live_view=503",
                     no_playlist=False,
-                    playlist_items=range(5),
+                    playlist_items=range(1),
                 )
+                info_dict_all = await aio.to_thread(
+                    fetch_yt_metadata,
+                    base_url + "/videos",
+                    no_playlist=False,
+                    playlist_items=range(1),
+                )
+                if info_dict_ls:
+                    try:
+                        ls_entry = info_dict_ls["entries"][0]
+                    except (KeyError, IndexError):
+                        ls_entry = None
+                else:
+                    ls_entry = None
+                if info_dict_all:
+                    try:
+                        all_entry = info_dict_all["entries"][0]
+                    except (KeyError, IndexError):
+                        all_entry = None
+                else:
+                    all_entry = None
+
+                if (
+                    ls_entry
+                    and all_entry
+                    and (
+                        all_entry.get("was_live")
+                        or "live_chat" in all_entry.get("subtitles", [])
+                    )
                 assert info_dict
                 last_live: Mapping | None = None
                 for entry in info_dict["entries"]:
                     # Premieres don't show as "live", but they have live_chat
                     if entry.get("was_live") or "live_chat" in entry.get(
                         "subtitles", []
-                    ):
-                        last_live = entry
-                        break
+                ):
+                    # Which is the earliest
+                    last_live = (
+                        ls_entry
+                        if ls_entry["release_timestamp"]
+                        > all_entry["release_timestamp"]
+                        else all_entry
+                    )
+                else:
+                    last_live = ls_entry or all_entry
+
                 assert last_live
                 # last_entry: Mapping = info_dict["entries"][0]
                 return (
