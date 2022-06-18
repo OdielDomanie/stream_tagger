@@ -414,7 +414,7 @@ class Tagging(cm.Cog):
                 **opts_dict,
             )
         except ValueError:
-            await send("Stream not found", ephemeral=True)
+            await send("I couldn't find a stream 😖", ephemeral=True)
             return
 
         if not tag_dump:
