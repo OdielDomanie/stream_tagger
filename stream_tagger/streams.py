@@ -268,7 +268,7 @@ async def _get_stream_idurl(
                     fetch_yt_metadata,
                     chn_url + "/videos",
                     no_playlist=False,
-                    playlist_items=range(1),
+                    playlist_items=range(2),
                 )
                 assert info_dict
                 last_entry: Mapping = info_dict["entries"][0]
