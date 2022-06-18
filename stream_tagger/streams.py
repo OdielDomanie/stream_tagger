@@ -309,13 +309,13 @@ async def _get_stream_idurl(
                     fetch_yt_metadata,
                     base_url + "/videos?view=2&live_view=503",
                     no_playlist=False,
-                    playlist_items=range(1),
+                    playlist_items=range(2),
                 )
                 info_dict_all = await aio.to_thread(
                     fetch_yt_metadata,
                     base_url + "/videos",
                     no_playlist=False,
-                    playlist_items=range(1),
+                    playlist_items=range(2),
                 )
                 if info_dict_ls:
                     try:
