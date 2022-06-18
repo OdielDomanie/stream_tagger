@@ -169,6 +169,16 @@ def get_chns_from_name(
     q_name: str,
 ) -> tuple[str, tuple[str, ...], str, str | None]:
     "return the channel id, channel urls, channel name and en name. Raise KeyError if not found."
+
+    # First check if a word starts with the query
+    for chn_id, tup in channels_list.items():
+        chn_urls, name, en_name = tup
+        if any(
+            word.lower().startswith(q_name.lower())
+            for word in name.split() + (en_name or "").split()
+        ):
+            return chn_id, chn_urls, name, en_name
+    # If not found, search query in string
     for chn_id, tup in channels_list.items():
         chn_urls, name, en_name = tup
         if q_name.lower() in name.lower() or (
@@ -182,12 +192,31 @@ def get_all_chns_from_name(
     q_name: str,
 ) -> Generator[tuple[str, tuple[str, ...], str, str | None], None, None]:
     "return the channel id, channel urls, channel name and en name. Raise KeyError if not found."
+
+    results = set()
+    # First check if a word starts with the query
+    for chn_id, tup in channels_list.items():
+        chn_urls, name, en_name = tup
+        if any(
+            word.lower().startswith(q_name.lower())
+            for word in name.split() + (en_name or "").split()
+        ):
+            result = chn_id, chn_urls, name, en_name
+            yield result
+            results.add(result)
+
     for chn_id, tup in channels_list.items():
         chn_urls, name, en_name = tup
         if q_name.lower() in name.lower() or (
             en_name and q_name.lower() in en_name.lower()
         ):
-            yield chn_id, chn_urls, name, en_name
+            result = chn_id, chn_urls, name, en_name
+            try:
+                results.remove(result)
+            except KeyError:
+                pass
+            else:
+                yield result
 
 
 async def _get_stream_idurl(
