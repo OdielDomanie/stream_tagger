@@ -9,3 +9,5 @@ sample_ytdlp_outputs
 tests/*
 .vscode/*
 *.log
+twitch.json
+twitch.py
