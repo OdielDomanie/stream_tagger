@@ -157,7 +157,7 @@ async def update_channels_list():
 
         await aio.sleep(sleep_for)
 
-        # await populate_channels_list()
+        await populate_channels_list()
 
         cur.execute("INSERT INTO 'last_update' VALUES (0, ?)", (int(time.time()),))
 

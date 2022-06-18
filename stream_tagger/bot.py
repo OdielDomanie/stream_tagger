@@ -22,7 +22,7 @@ class TaggerBot(cm.Bot):
         self.settings = Settings(self, database, self.check_perm)
 
     async def setup_hook(self) -> None:
-        aio.create_task(update_channels_list())
+        # aio.create_task(update_channels_list())  # Is useless rn.
 
         await self.add_cog(self.settings)
         await self.add_cog(Tagging(self, self.database))
