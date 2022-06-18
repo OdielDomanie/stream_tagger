@@ -3,7 +3,7 @@ import logging
 import re
 import sqlite3
 import time
-from typing import Any, Generator, Iterable, Mapping
+from typing import Generator, Iterable, Mapping
 from urllib import parse
 
 import aiohttp
@@ -20,7 +20,7 @@ logger = logging.getLogger("taggerbot.stream_extractor")
 
 # {chn_id: ((chn_url,), streamer_name, en_name)}
 channels_list = PersistentDict[str, tuple[tuple[str, ...], str, str | None]](
-    CHANNELS_LIST_DB, "channnels_list", 24*60*60
+    CHANNELS_LIST_DB, "channnels_list", 24 * 60 * 60
 )
 
 
@@ -230,7 +230,8 @@ async def _get_stream_idurl(
 
     # Is it a youtube channel url?
     if chn_id := re.search(
-        r"(?<=youtube\.com\/channel\/)([a-zA-Z0-9\-_]{24})(?![a-zA-Z0-9\-_])", stream_name
+        r"(?<=youtube\.com\/channel\/)([a-zA-Z0-9\-_]{24})(?![a-zA-Z0-9\-_])",
+        stream_name,
     ):
         stream_name = chn_id.group()  # set to channel id
 
@@ -338,12 +339,6 @@ async def _get_stream_idurl(
                         all_entry.get("was_live")
                         or "live_chat" in all_entry.get("subtitles", [])
                     )
-                assert info_dict
-                last_live: Mapping | None = None
-                for entry in info_dict["entries"]:
-                    # Premieres don't show as "live", but they have live_chat
-                    if entry.get("was_live") or "live_chat" in entry.get(
-                        "subtitles", []
                 ):
                     # Which is the earliest
                     last_live = (
@@ -356,7 +351,6 @@ async def _get_stream_idurl(
                     last_live = ls_entry or all_entry
 
                 assert last_live
-                # last_entry: Mapping = info_dict["entries"][0]
                 return (
                     last_live["id"],
                     "yt",
@@ -410,7 +404,9 @@ async def get_stream(stream_name: str, *, __recurse=True) -> Stream:
         except PayWalled:
             # Youtube, members only
             async with aiohttp.ClientSession() as session:
-                info_dict = await holodex_req(session, "videos/", url_param=stream_url[-11:], query_params={})
+                info_dict = await holodex_req(
+                    session, "videos/", url_param=stream_url[-11:], query_params={}
+                )
                 platform = "holodex"
 
     assert info_dict
