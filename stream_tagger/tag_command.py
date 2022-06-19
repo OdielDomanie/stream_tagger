@@ -140,7 +140,10 @@ class Tagging(cm.Cog):
                     break
 
             await self.tag(
-                message, message.content[ticks + spaces :], message.author.id, hierarchy=ticks - 1
+                message,
+                message.content[ticks + spaces :],
+                message.author.id,
+                hierarchy=ticks - 1,
             )
 
     ### edit a tag
@@ -654,8 +657,12 @@ class Tagging(cm.Cog):
                         pre += "├"
                     elif prev_ind > curr_ind:
                         pre += "└"
-                    elif curr_ind == 1 and (curr_ind - prev_ind) == 1 and curr_ind == next_ind:
-                        pre += "└" +  "├"
+                    elif (
+                        curr_ind == 1
+                        and (curr_ind - prev_ind) == 1
+                        and curr_ind == next_ind
+                    ):
+                        pre += "└" + "├"
                     elif prev_ind < curr_ind == next_ind:
                         pre += "└" + "".join(["─"] * (curr_ind - prev_ind - 1)) + "┬"
                     elif curr_ind == 1 and prev_ind == 0 and next_ind != 1:
