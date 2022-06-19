@@ -323,7 +323,9 @@ class Tagging(cm.Cog):
             match opt:
                 case "own":
                     opts_dict["own"] = True
-                case style if style in TagStyles.__members__.keys():
+                case style if style in (
+                    sty.value for sty in TagStyles.__members__.values()
+                ):
                     opts_dict["style"] = style
                 case start_time if start_time.startswith("start="):
                     opts_dict["start_time"] = str_to_time(start_time[6:])
