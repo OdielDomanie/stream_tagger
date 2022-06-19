@@ -356,12 +356,12 @@ class Tagging(cm.Cog):
         # If the command was called to delete the last dump, instead of a dump.
         if "delete" in opts_dict:
             last_msg = self.last_dump.get(ctx_it.channel.id)
-            if last_msg:
-                for msg in last_msg:
-                    if isinstance(msg, dc.Interaction):
-                        await msg.delete_original_message()
-                    else:
-                        await msg.delete()
+            while last_msg:
+                msg = last_msg.pop()
+                if isinstance(msg, dc.Interaction):
+                    await msg.delete_original_message()
+                else:
+                    await msg.delete()
             return
 
         stolen_stream = False
@@ -440,7 +440,7 @@ class Tagging(cm.Cog):
         embed_texts: list[str] = []
         embed_text = ""
         for line in tags_text.splitlines(keepends=True):
-            if len(embed_text) + len(line) >= 6000:  # discord embed character limit
+            if len(embed_text) + len(line) >= 4000:  # discord embed character limit
                 embed_texts.append(embed_text)
                 embed_text = ""
             embed_text += line
@@ -450,20 +450,21 @@ class Tagging(cm.Cog):
             dc.Embed(color=EMBED_COLOR, description=embed_text)
             for embed_text in embed_texts
         ]
-        embeds[0].title = "Tags"
+        embeds[0].title = "Tags: " + stream.stream_url
 
-        n = len(embeds) // 10 + (0 if len(embeds) % 10 == 0 else 1)
-        for i in range(n):
+        last_dump = set[dc.Message | dc.Interaction]()
+        for embed in embeds:
             if isinstance(ctx_it, dc.Interaction):
                 if ctx_it.response.is_done:
                     it_send = ctx_it.followup.send
                 else:
                     it_send = send
-                msg = await it_send(embeds=embeds[i : i + 10])
-                self.last_dump.setdefault(ctx_it.channel.id, set()).add(msg or ctx_it)
+                msg = await it_send(embed=embed)
+                last_dump.add(msg or ctx_it)
             else:
-                msg = await ctx_it.send(embeds=embeds[i : i + 10])
-                self.last_dump.setdefault(ctx_it.channel.id, set()).add(msg)
+                msg = await ctx_it.send(embed=embed)
+                last_dump.add(msg)
+        self.last_dump[ctx_it.channel.id] = last_dump
 
     async def dump_tags_from_stream(
         self,
