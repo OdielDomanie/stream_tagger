@@ -562,7 +562,7 @@ class Tagging(cm.Cog):
 
         tags_per_minute = len(tags) / (end - start) * 60
         header_text = f"{stream_url or ''} <t:{start}:f> {len(tags)} tags ({tags_per_minute:.1f}/min)"
-        if style != "yt":
+        if style not in ("yt", "yt-text", "csv"):
             lines.append(header_text)
 
         match style:
@@ -570,10 +570,8 @@ class Tagging(cm.Cog):
                 for ts, text, vote, _, _ in tags:
                     ts += offset
                     relative_ts = ts - start
-                    line = (
-                        text + f" ({vote})"
-                        if vote
-                        else ""
+                    line = text.replace("`", "") + (
+                        (f" ({vote})" if vote else "")
                         + (
                             f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)})"
                             if stream_url and url_is_perm
@@ -582,11 +580,11 @@ class Tagging(cm.Cog):
                     )
                     lines.append(line)
             case "csv":
-                for ts, text, vote, _, _ in tags:
+                for ts, text, vote, _, h in tags:
                     ts += offset
                     relative_ts = ts - start
                     escaped_text = '"' + text.replace('"', '""') + '"'
-                    line = ",".join((str(relative_ts), escaped_text, str(vote)))
+                    line = ",".join((str(relative_ts), escaped_text, str(vote), str(h)))
                     lines.append(line)
             case "info":
                 pass
@@ -637,7 +635,7 @@ class Tagging(cm.Cog):
                                 if stream_url and url_is_perm
                                 else f" `{td_to_str(relative_ts)}` | "
                             )
-                            + tag.text
+                            + tag.text.replace("`", "")
                             + (
                                 f" ({''.join(['⭐'] * adjusted_stars(tag.vote))})"
                                 if tag.vote
