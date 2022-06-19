@@ -632,7 +632,7 @@ class Tagging(cm.Cog):
                             (
                                 f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)}) | "
                                 if stream_url and url_is_perm
-                                else f" {td_to_str(relative_ts)} | "
+                                else f" `{td_to_str(relative_ts)}` | "
                             )
                             + tag.text
                             + (
