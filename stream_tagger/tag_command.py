@@ -487,8 +487,14 @@ class Tagging(cm.Cog):
             except AssertionError as e:
                 raise ValueError from e
             real_url = not stream.stream_url_temp and stream.stream_url
-            start_time_ = stream.start_time
-            end_time = stream.end_time or time.time()
+            if start_time:
+                start_time_ = start_time
+            else:
+                start_time_ = stream.start_time
+            if duration:
+                end_time = start_time_ + duration
+            else:
+                end_time = stream.end_time or time.time()
             url_is_perm = not stream.stream_url_temp
         else:
             real_url = None
