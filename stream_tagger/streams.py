@@ -270,7 +270,7 @@ async def _get_stream_idurl(
                     no_playlist=False,
                     playlist_items=range(2),
                 )
-                assert info_dict
+                assert info_dict and info_dict.get("entries")
                 last_entry: Mapping = info_dict["entries"][0]
                 return last_entry["webpage_url"], "ttv_vod", last_entry, chn_url
 
