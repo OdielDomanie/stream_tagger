@@ -33,7 +33,9 @@ class Settings(cm.Cog):
     )
     async def settings(self, ctx: cm.Context["TaggerBot"]):
         assert ctx.bot.help_command
-        await ctx.bot.help_command.send_group_help(self.settings)
+        ctx_help = ctx.bot.help_command.copy()
+        ctx_help.context = ctx
+        await ctx_help.send_group_help(self.settings)
 
     @settings.command(name="admin add", with_app_command=False)
     @ac.describe(user_or_role="The user or role to grant permission.")
