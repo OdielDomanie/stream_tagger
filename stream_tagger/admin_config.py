@@ -139,12 +139,12 @@ class Settings(cm.Cog):
         'Mark this text channel as private: Other servers can\'t "steal" the future tags made in this channel.'
         assert ctx.guild
         if private:
-            self.configs.add(("private_txtchn", ctx.guild.id), value=ctx.channel.id)
+            self.configs.add("private_txtchn", ctx.guild.id, value=ctx.channel.id)
             await ctx.send("Marked as private.")
         else:
             try:
                 self.configs.remove(
-                    ("private_txtchn", ctx.guild.id), value=ctx.channel.id
+                    "private_txtchn", ctx.guild.id, value=ctx.channel.id
                 )
             except KeyError:
                 await ctx.send("Already not private.")
