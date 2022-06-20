@@ -38,13 +38,15 @@ class TaggerBot(cm.Bot):
             logger.warning(f"{member} was a User, not a Member.")
             return False
         admins = self.settings.configs.get(("admins", member.guild.id), [])
-        return isinstance(member, dc.Member) and (
-            member.guild_permissions.manage_guild
-            or member.guild_permissions.administrator
-            or any(role.id in admins for role in member.roles)
-            or member.id in admins
-            or member.id == self.owner_id
-        )
+        permission_oks = {
+            "manage_guild": member.guild_permissions.manage_guild,
+            "administrator": member.guild_permissions.administrator,
+            "admin_role": any(role.id in admins for role in member.roles),
+            "admin_member": member.id in admins,
+            "owner": member.id == self.owner_id,
+        }
+        logger.info(permission_oks)
+        return any(permission_oks.values())
 
     @staticmethod
     def check_perm(ctx: cm.Context["TaggerBot"]) -> bool:

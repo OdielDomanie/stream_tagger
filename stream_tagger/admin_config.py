@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Callable
 
 import discord as dc
 import discord.app_commands as ac
@@ -37,9 +37,9 @@ class Settings(cm.Cog):
         ctx_help.context = ctx
         await ctx_help.send_group_help(self.settings)
 
-    @settings.command(name="admin add", with_app_command=False)
+    @settings.command(name="admin_add", with_app_command=False)
     @ac.describe(user_or_role="The user or role to grant permission.")
-    async def admin_add(self, ctx: cm.Context, user_or_role: dc.Member | dc.Role):
+    async def admin_add(self, ctx: cm.Context, *, user_or_role: dc.Member | dc.Role):
         'Add a role or user as a bot admin. "Admins" can change bot\'s per-server settings.'
         assert ctx.guild
 
@@ -47,9 +47,9 @@ class Settings(cm.Cog):
 
         await self.admin_list(ctx)
 
-    @settings.command(name="admin rem", with_app_command=False)
+    @settings.command(name="admin_rem", with_app_command=False)
     @ac.describe(user_or_role="The user or role to remove permission.")
-    async def admin_remove(self, ctx: cm.Context, user_or_role: dc.Member | dc.Role):
+    async def admin_remove(self, ctx: cm.Context, *, user_or_role: dc.Member | dc.Role):
         assert ctx.guild
         try:
             self.configs.remove("admins", ctx.guild.id, value=user_or_role.id)
@@ -58,7 +58,7 @@ class Settings(cm.Cog):
 
         await self.admin_list(ctx)
 
-    @settings.command(name="admin list", with_app_command=False)
+    @settings.command(name="admin_list", with_app_command=False)
     async def admin_list(self, ctx: cm.Context):
         'List members and roles with the "Admin" permission for the bot.'
         assert ctx.guild
@@ -69,8 +69,8 @@ class Settings(cm.Cog):
         admin_names = [admin.name for admin in admins if admin]
 
         await ctx.send(
-            f"""Current people with admin permission for the bot (in addition to server admins):
-            `{' ,'.join(admin_names) if admin_names else 'No one.'}`"""
+            "Current people with admin permission for the bot (in addition to server admins):"
+            f"\n`{', '.join(admin_names) if admin_names else 'No one.'}`"
         )
 
     @settings.command(name="quiet")
