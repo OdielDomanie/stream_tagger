@@ -31,7 +31,7 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 
 intents = dc.Intents()
-intents.messages = True
+intents.guild_messages = True
 intents.message_content = True
 intents.guilds = True
 intents.reactions = True
