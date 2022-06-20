@@ -53,6 +53,8 @@ class Tagging(cm.Cog):
             database, "guild_streams", 1, dump_v=stream_dump, load_v=stream_load
         )
 
+        self.tags_command.add_check(bot.check_perm)
+
     async def tag(self, msg: dc.Message, text: str, author_id: int, hierarchy=0):
         assert msg.guild
 
@@ -113,6 +115,23 @@ class Tagging(cm.Cog):
                 except dc.Forbidden:
                     pass
 
+    @staticmethod
+    def parse_ticks(content: str) -> tuple[str, int]:
+        "Return stripped content, and hierarchy. Raise ValueError if no backtick."
+        ticks = 0
+        spaces = 0
+        for c in content:
+            if c == "`":
+                ticks += 1
+            elif c == " ":
+                spaces += 1
+            else:
+                break
+        if not ticks:
+            raise ValueError
+        else:
+            return content[ticks + spaces :], ticks - 1
+
     ### tag with prefix
     @cm.Cog.listener()
     async def on_message(self, message: dc.Message) -> None:
@@ -127,23 +146,17 @@ class Tagging(cm.Cog):
             return
         if message.author.bot and not message.guild:
             return
-        if message.content.startswith("`"):
 
-            ticks = 0
-            spaces = 0
-            for c in message.content:
-                if c == "`":
-                    ticks += 1
-                elif c == " ":
-                    spaces += 1
-                else:
-                    break
-
+        try:
+            text, h = self.parse_ticks(message.content)
+        except ValueError:
+            pass
+        else:
             await self.tag(
                 message,
-                message.content[ticks + spaces :],
+                text,
                 message.author.id,
-                hierarchy=ticks - 1,
+                hierarchy=h,
             )
 
     ### edit a tag
@@ -151,7 +164,7 @@ class Tagging(cm.Cog):
     async def on_raw_message_edit(self, payload: dc.RawMessageUpdateEvent):
         if (content := payload.data.get("content")) and payload.message_id in self.tags:
 
-            prefixes = await self.get_prefix(payload)  # type: ignore  # This ends up in prefix_of
+            prefixes = await self.bot.get_prefix(payload)  # type: ignore  # This ends up in prefix_of
             prefixes = [prefixes] if isinstance(prefixes, str) else prefixes
 
             if any(content.startswith(prefix) for prefix in prefixes):
@@ -243,6 +256,7 @@ class Tagging(cm.Cog):
 
     ### dump tags slash command
     @ac.command(name="tags")  # type: ignore
+    @ac.default_permissions(manage_guild=True)
     @ac.autocomplete(stream=stream_autocomp, server=server_autocomp)  # type: ignore
     @ac.describe(
         stream="Stream url, channel url, or the streamer name.",

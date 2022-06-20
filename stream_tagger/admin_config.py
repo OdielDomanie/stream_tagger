@@ -11,6 +11,10 @@ if TYPE_CHECKING:
     from .bot import TaggerBot
 
 
+admin_def_perms = dc.Permissions()
+admin_def_perms.manage_guild = True
+
+
 class Settings(cm.Cog):
     def __init__(
         self, bot: "TaggerBot", database: str, check: Callable[[cm.Context], bool]
@@ -25,7 +29,7 @@ class Settings(cm.Cog):
     @cm.hybrid_group(
         name="settings",
         invoke_without_command=True,
-        default_permissions=dc.Permissions(),
+        default_permissions=admin_def_perms,
     )
     async def settings(self, ctx: cm.Context["TaggerBot"]):
         assert ctx.bot.help_command

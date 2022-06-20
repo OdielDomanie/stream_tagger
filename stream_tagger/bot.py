@@ -35,10 +35,12 @@ class TaggerBot(cm.Bot):
 
     def is_admin(self, member: dc.Member | dc.User) -> bool:
         if isinstance(member, dc.User):
+            logger.warning(f"{member} was a User, not a Member.")
             return False
         admins = self.settings.configs.get(("admins", member.guild.id), [])
         return isinstance(member, dc.Member) and (
             member.guild_permissions.manage_guild
+            or member.guild_permissions.administrator
             or any(role.id in admins for role in member.roles)
             or member.id in admins
             or member.id == self.owner_id
