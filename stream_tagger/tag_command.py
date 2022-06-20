@@ -73,7 +73,7 @@ class Tagging(cm.Cog):
             except dc.Forbidden:
                 pass
 
-        def_offset = self.configs.get(("def_offset",))
+        def_offset = self.configs.get(("def_offset", msg.guild.id))
         offset = list(def_offset)[0] if def_offset else DEFAULT_OFFSET
         adjusted_ts = msg.created_at.timestamp() + offset
 
