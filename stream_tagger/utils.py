@@ -196,7 +196,7 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
 
     def __getitem__(self, keys: KTT) -> frozenset[VT]:
         if len(keys) != self.depth:
-            raise KeyError
+            raise TypeError
         if not self._cache_valid:
             self._populate_from_sql()
 
@@ -210,7 +210,7 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
             raise ValueError
 
         if len(keys) != self.depth:
-            raise KeyError
+            raise TypeError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -235,7 +235,7 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
             raise ValueError
 
         if len(keys) != self.depth:
-            raise KeyError
+            raise TypeError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -257,7 +257,7 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
     def remove(self, *keys, value: VT):
         "Can raise `KeyError`."
         if len(keys) != self.depth:
-            raise KeyError
+            raise TypeError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -271,14 +271,12 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
         )
         con.commit()
         con.close()
-        try:
-            self._store[tuple(keys)].remove(value)
-        except KeyError:
-            pass
+
+        self._store[tuple(keys)].remove(value)
 
     def __delitem__(self, keys: KTT):
         if len(keys) != self.depth:
-            raise KeyError
+            raise TypeError
 
         key_strs = tuple(repr(key) for key in keys)
 
@@ -323,19 +321,20 @@ def str_to_time_d(time_str: str) -> int:
         case _:
             raise ValueError
 
+
 def str_to_time(time_str: str) -> int:
     "If hours supplied, return today + hours. Otherwise, accept as timestamp"
     if ":" in time_str:
         hours = str_to_time_d(time_str)
         today_start_st = time.gmtime()
-        today_start = time.mktime(today_start_st[:3] + (0,0,0) + today_start_st[6:])
+        today_start = time.mktime(today_start_st[:3] + (0, 0, 0) + today_start_st[6:])
         return hours + int(today_start)
     else:
         return int(time_str)
 
 
 class ExpBackoff:
-    def __init__(self, backoff:float=2, cooldown:float= 0.9):
+    def __init__(self, backoff: float = 2, cooldown: float = 0.9):
         self.backoff_factor = backoff
         self.cooldown_factor = cooldown
         self._current_wait: float = 0
