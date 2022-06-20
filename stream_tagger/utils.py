@@ -335,23 +335,29 @@ def str_to_time(time_str: str) -> int:
 
 
 class ExpBackoff:
-    def __init__(self, backoff=2, cooldown = 0.9):
+    def __init__(self, backoff:float=2, cooldown:float= 0.9):
         self.backoff_factor = backoff
         self.cooldown_factor = cooldown
-        self.current_wait = 0
+        self._current_wait: float = 0
+        self._last_backoff = 0
 
     def backoff(self):
-        if self.current_wait == 0:
-            self.current_wait = 1
+        self._last_backoff = time.time()
+        if self._current_wait == 0:
+            self._current_wait = 1
         else:
-            self.current_wait *= self.backoff_factor
+            self._current_wait *= self.backoff_factor
 
     def cooldown(self):
-        self.current_wait *= self.cooldown_factor
+        self._current_wait *= self.cooldown_factor
+
+    @property
+    def current_wait(self):
+        return self._current_wait - (time.time() - self._last_backoff)
 
     async def wait(self):
-        if self.current_wait > 0.2:
-            logger.info(f"Current backoff: {self.current_wait:.3f}")
+        if self._current_wait > 0.2:
+            logger.warning(f"Current backoff: {self._current_wait:.3f}")
         await aio.sleep(self.current_wait)
 
 

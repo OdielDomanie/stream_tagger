@@ -53,6 +53,9 @@ async def holodex_req(
     async with __sem[0]:
         # async with crl:
         while True:
+            if _exp_backoff.current_wait > 5:
+                logger.warning("Skipping holodex req due to prev repeated fails.")
+                raise Exception("Holodex high exp backoff wait.")
             await _exp_backoff.wait()
             await aio.sleep(_next_req_at - time.time())
             logger.debug(f"Req to Holodex: {end_point} | {url_param} | {query_params}")
