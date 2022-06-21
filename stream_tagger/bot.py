@@ -69,3 +69,15 @@ class TaggerBot(cm.Bot):
         # Second parameter is unimportant for this fucntion
         mention_pre = cm.when_mentioned(bot, msg)  # type: ignore
         return list(prefixes) + mention_pre
+
+    async def on_command_error(
+        self, context: cm.Context, exception: cm.errors.CommandError, /
+    ):
+        if isinstance(exception, cm.errors.UserInputError):
+            logger.info(f"User entered wrong input: {context.message.content}")
+        elif isinstance(exception, cm.errors.CommandInvokeError) and isinstance(
+            exception.original, aio.TimeoutError
+        ):
+            logger.info(f"Timed out: {context.message.content}")
+        else:
+            return await super().on_command_error(context, exception)
