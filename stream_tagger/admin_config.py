@@ -140,7 +140,7 @@ class Settings(cm.Cog):
         "Change the default offset applied in this server. Default is -20."
         assert ctx.guild
         self.configs["def_offset", ctx.guild.id] = (default_offset,)
-        await ctx.send("Set.")
+        await ctx.send(f"Set to {default_offset}")
 
     @settings.command(name="set_private")
     async def set_private(self, ctx: cm.Context, private: bool):
