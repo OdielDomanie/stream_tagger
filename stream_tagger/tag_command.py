@@ -322,6 +322,7 @@ class Tagging(cm.Cog):
     ### dump tags
     @cm.command(name="tags", description=tags_desc)
     async def tags_command(self, ctx, *options: str):
+        "Dump the tags for a given stream url. See `help tags` for full options."
         await self.tags_hybrid(ctx, *options)
 
     async def tags_hybrid(
@@ -329,7 +330,6 @@ class Tagging(cm.Cog):
         ctx_it: cm.Context | dc.Interaction,
         *options: str,
     ):
-        "Dump the tags for a given stream url. See `help tags` for full options."
 
         if isinstance(ctx_it, dc.Interaction):
             send = ctx_it.followup.send
@@ -392,8 +392,8 @@ class Tagging(cm.Cog):
         stolen_stream = False
         stream_url = opts_dict.pop("stream_url", None)
         if (stream_url == "_" or not stream_url) and not "start_time" in opts_dict:
-            if "guild_id" in opts_dict:
-                streams = self.guild_streams.get(opts_dict["guild_id"])
+            if "guild" in opts_dict:
+                streams = self.guild_streams.get((opts_dict["guild"],))
                 if streams:
                     streams_sorted = sorted(
                         streams, key=lambda s: s.start_time, reverse=True
@@ -401,15 +401,20 @@ class Tagging(cm.Cog):
                     stolen_stream = streams_sorted[0]
                     opts_dict["start_time"] = stolen_stream.start_time
                     if "duration" not in opts_dict:
-                        # This will always be filled, even if with a not actual value.
-                        assert stolen_stream.end_time
+                        stolen_end_time = stolen_stream.end_time or time.time()
                         opts_dict["duration"] = (
-                            stolen_stream.end_time - stolen_stream.start_time
+                            stolen_end_time - stolen_stream.start_time
                         )
+                else:
+                    await send(
+                        "That server has not specified a stream. Provide a stream name or a manual `start=` time.",
+                        ephemeral=True,
+                    )
+                    return
 
             else:
                 await send(
-                    "I need either a stream url, or a manual `start:` time, or another server to steal from.",
+                    "I need either a stream name, or a manual `start=` time, or another server to steal from.",
                     ephemeral=True,
                 )
                 return
@@ -449,9 +454,8 @@ class Tagging(cm.Cog):
         stream, tags_text = tag_dump
 
         # Add
-        if stream.stream_url_temp:
-            assert ctx_it.guild
-            self.guild_streams.add(ctx_it.guild.id, value=stream)
+        assert ctx_it.guild
+        self.guild_streams.add(ctx_it.guild.id, value=stream)
 
         if style in ("yt-text", "csv"):
             txt_f = dc.File(
