@@ -242,6 +242,12 @@ class PersistentSetDict(MutableMapping[KTT, frozenset[VT]]):
         con = sqlite3.connect(self.database)
         cur = con.cursor()
 
+        cur.execute(
+            f"""DELETE FROM '{self.table_name}' WHERE
+            {' AND '.join(key+' = ?' for key in self._keys)}""",
+            key_strs,
+        )
+
         for value in value_set:
 
             cur.execute(

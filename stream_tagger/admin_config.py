@@ -87,11 +87,19 @@ class Settings(cm.Cog):
         brief="The default format for the tags output.",
     )
     async def default_format(
-        self, ctx: cm.Context["TaggerBot"], format: TagStyles = TagStyles.classic
+        self, ctx: cm.Context["TaggerBot"], format: TagStyles
     ):
-        "Change the default format of the `tags` command."
+        """Change the default format of the `tags` command.
+        Possible formats:
+        * alternative
+        * classic
+        * yt
+        * yt-text
+        * info
+        * csv
+        """
         assert ctx.guild
-        self.configs["def_format", ctx.guild.id] = (format,)
+        self.configs["def_format", ctx.guild.id] = (format.value,)
         await ctx.send("Set.")
 
     @settings.command(

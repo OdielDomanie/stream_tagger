@@ -66,7 +66,7 @@ class Tagging(cm.Cog):
         # else:
         #     text = text[1:]
 
-        if all(self.configs.get(("quiet", msg.guild.id), ())):
+        if not any(self.configs.get(("quiet", msg.guild.id), ())):
             # Permissions: read message history, add reactions
             try:
                 await aio.gather(msg.add_reaction("⭐"), msg.add_reaction("❌"))
@@ -97,21 +97,27 @@ class Tagging(cm.Cog):
         await self.tag(ctx.message, tag, ctx.author.id)
 
     ### Adjust
-    @cm.command()  # type: ignore
+    @cm.command()
     async def adjust(self, ctx: cm.Context, amount: int):
         "Adjust time of the last tag."
         assert ctx.guild
+        assert abs(amount) <= 7200
         last_tags = self.tags.get_tags(
-            ctx.guild.id, 0, time.time() + 26 * 60 * 60, ctx.author.id, limit=1
+            ctx.guild.id,
+            0,
+            time.time() + 2 * 60 * 60,
+            ctx.author.id,
+            limit=1,
+            order="DESC",
         )
         if last_tags:
             og_ts, msg_id = last_tags[0][0], last_tags[0][3]
             self.tags.update_time(msg_id, og_ts + amount)
-            last_msg = await ctx.fetch_message(msg_id)
+            # last_msg = await ctx.fetch_message(msg_id)
             # Permissions: Read message history, Add reactions
-            if not self.configs.get(("quiet", ctx.guild.id)):
+            if not any(self.configs.get(("quiet", ctx.guild.id), ())):
                 try:
-                    await last_msg.add_reaction("👍")
+                    await ctx.message.add_reaction("👍")
                 except dc.Forbidden:
                     pass
 
@@ -163,12 +169,12 @@ class Tagging(cm.Cog):
     @cm.Cog.listener()
     async def on_raw_message_edit(self, payload: dc.RawMessageUpdateEvent):
         if (content := payload.data.get("content")) and payload.message_id in self.tags:
-
-            prefixes = await self.bot.get_prefix(payload)  # type: ignore  # This ends up in prefix_of
-            prefixes = [prefixes] if isinstance(prefixes, str) else prefixes
-
-            if any(content.startswith(prefix) for prefix in prefixes):
-                self.tags.update_text(payload.message_id, content)
+            try:
+                text, h = self.parse_ticks(content)
+            except ValueError:
+                pass
+            else:
+                self.tags.update_text(payload.message_id, text, h=h)
 
     ### vote or delete
     @cm.Cog.listener()
@@ -418,7 +424,7 @@ class Tagging(cm.Cog):
         if not def_style_set:
             def_style = DEF_STYLE
         else:
-            def_style: str = list(def_style)[0]
+            def_style: str = list(def_style_set)[0]
 
         style = opts_dict.pop("style", def_style)
 
@@ -648,7 +654,7 @@ class Tagging(cm.Cog):
                     if style == "alternative":
                         line = (
                             (
-                                f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)}) | "
+                                f"[{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)}) | "
                                 if stream_url and url_is_perm
                                 else f" `{td_to_str(relative_ts)}` | "
                             )
@@ -687,6 +693,8 @@ class Tagging(cm.Cog):
                         logger.error(
                             f"Unhandled hierarchy case: {prev_ind, curr_ind, next_ind}"
                         )
+                    if len(pre) > 1:
+                        pre += " "
                     line = pre + line
                     line = line[1:]
                     if line[0] == "─":

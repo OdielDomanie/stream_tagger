@@ -1,5 +1,6 @@
 import collections
 import sqlite3
+from typing import Literal
 
 
 Tag_t = collections.namedtuple("tag_t", ("ts", "text", "vote", "msg_id", "hier"))
@@ -34,7 +35,9 @@ class TagDatabase:
         cur.execute("PRAGMA user_version")
         version = cur.fetchall()[0][0]  # 0 if version is not set (new table)
         if version != 0 and version < CURRENT_VERSION:
-            cur.execute(f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN hierarchy INT DEFAULT 0")
+            cur.execute(
+                f"ALTER TABLE {self.TABLE_NAME} ADD COLUMN hierarchy INT DEFAULT 0"
+            )
 
         cur.execute(f"PRAGMA user_version={CURRENT_VERSION}")
         self.con.commit()
@@ -47,7 +50,7 @@ class TagDatabase:
         text: str,
         author_id: int,
         hidden=False,
-        hierarchy=0
+        hierarchy=0,
     ):
         time = int(time)
         cur = self.con.cursor()
@@ -57,11 +60,11 @@ class TagDatabase:
         )
         self.con.commit()
 
-    def update_text(self, msg_id: int, text: str):
+    def update_text(self, msg_id: int, text: str, h: int):
         cur = self.con.cursor()
         cur.execute(
-            f"UPDATE {self.TABLE_NAME} SET text=? WHERE ?=msg_id",
-            (text, msg_id),
+            f"UPDATE {self.TABLE_NAME} SET message=?, hierarchy=? WHERE ?=msg_id",
+            (text, h, msg_id),
         )
         self.con.commit()
 
@@ -98,17 +101,19 @@ class TagDatabase:
         author_id: int | None = None,
         limit: int = 1_000,
         show_hidden=False,
-    ) -> list[Tag_t]: #list[tuple[int, str, int, int, int]]:
+        order: Literal["ASC", "DESC"] = "ASC",
+    ) -> list[Tag_t]:  # list[tuple[int, str, int, int, int]]:
         "Returns a list of tuples of timestamp, text, votes, msg_id, and hierarchy."
         start, end = int(start), int(end)
         cur = self.con.cursor()
         assert isinstance(limit, int)
+        assert order in ("ASC", "DESC")
         if author_id:
             cur.execute(
                 f"""SELECT timestamp_, message, votes, msg_id, hierarchy FROM {self.TABLE_NAME}
                 WHERE guild=? AND timestamp_ BETWEEN ? AND ? AND author=?
                 AND (hidden IS FALSE OR hidden=?)
-                ORDER BY timestamp_ LIMIT {limit}""",
+                ORDER BY timestamp_ {order} LIMIT {limit}""",
                 (guild_id, start, end, author_id, show_hidden),
             )
         else:
@@ -116,7 +121,7 @@ class TagDatabase:
                 f"""SELECT timestamp_, message, votes, msg_id, hierarchy FROM {self.TABLE_NAME}
                 WHERE guild=? AND timestamp_ BETWEEN ? AND ?
                 AND (hidden IS FALSE OR hidden=?)
-                ORDER BY timestamp_ LIMIT {limit}""",
+                ORDER BY timestamp_ {order} LIMIT {limit}""",
                 (guild_id, start, end, show_hidden),
             )
         return list(Tag_t(*fetch) for fetch in cur.fetchall())
