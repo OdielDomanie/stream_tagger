@@ -134,7 +134,7 @@ class Tagging(cm.Cog):
 
     ### tag with prefix
     @cm.Cog.listener()
-    async def on_message(self, message: dc.Message) -> None:
+    async def on_message(self, message: dc.Message, reactions=True):
         if message.author == self.bot.user:
             return
         if message.author.bot and (  # Ignore bots unless set otherwise by the guild.
@@ -157,7 +157,9 @@ class Tagging(cm.Cog):
                 text,
                 message.author.id,
                 hierarchy=h,
+                reactions=reactions,
             )
+            return True
 
     ### edit a tag
     @cm.Cog.listener()
@@ -179,7 +181,7 @@ class Tagging(cm.Cog):
 
             elif (
                 reaction.emoji == "❌"
-                and (reaction.message.author == user or self.bot.is_admin(user))
+                and (reaction.message.author == user or self.bot.is_admin(user, "❌"))
                 and reaction.message.id in self.tags
             ):
                 self.tags.remove(reaction.message.id)
@@ -712,6 +714,21 @@ class Tagging(cm.Cog):
                 raise ValueError
 
         return "\n".join(lines)
+
+    @cm.hybrid_command()
+    async def tags_from_history(self, ctx: cm.Context, days: int):
+        "Load tags from this channel's history. Useful for loading tags made before adding this bot."
+        if ctx.interaction:
+            await ctx.interaction.response.defer(thinking=True)
+        until = time.time() - days * 24 * 3600
+        count = 0
+        async for msg in ctx.channel.history():
+            if msg.created_at.timestamp() < until:
+                break
+            if msg.id not in self.tags:
+                if await self.on_message(msg, reactions=False):
+                    count += 1
+        await ctx.send(f"Loaded {count} tags")
 
 
 def td_to_str(t: float, style: Literal["classic", "yt"] = "classic") -> str:
