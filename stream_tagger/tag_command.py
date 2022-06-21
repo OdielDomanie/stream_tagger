@@ -55,18 +55,12 @@ class Tagging(cm.Cog):
 
         self.tags_command.add_check(bot.check_perm)
 
-    async def tag(self, msg: dc.Message, text: str, author_id: int, hierarchy=0):
+    async def tag(
+        self, msg: dc.Message, text: str, author_id: int, hierarchy=0, reactions=True
+    ):
         assert msg.guild
 
-        # hierarchy from first character as number
-        # try:
-        #     hierarchy = int(text[0])
-        # except ValueError:
-        #     pass
-        # else:
-        #     text = text[1:]
-
-        if not any(self.configs.get(("quiet", msg.guild.id), ())):
+        if reactions and not any(self.configs.get(("quiet", msg.guild.id), ())):
             # Permissions: read message history, add reactions
             try:
                 await aio.gather(msg.add_reaction("⭐"), msg.add_reaction("❌"))
@@ -445,6 +439,16 @@ class Tagging(cm.Cog):
             )
         except ValueError:
             await send("I couldn't find a stream 😖", ephemeral=True)
+            return
+        except aio.TimeoutError:
+            await send(
+                "Something went wrong, I think my connections are bad 🔌",
+                ephemeral=True,
+            )
+            raise
+        except Exception as e:
+            logger.exception(e)
+            await send("Something went wrong, I couldn't do it 😢", ephemeral=True)
             return
 
         if not tag_dump:

@@ -75,6 +75,7 @@ async def holodex_req(
                 if response.status in (403, 429) or (
                     response.status >= 500 and not retry_after
                 ):
+                    logger.warning(f"Received {response.status} from holodex.")
                     _exp_backoff.backoff()
                     continue
                 else:
@@ -407,8 +408,11 @@ async def get_stream(stream_name: str, *, __recurse=True) -> Stream:
         except PayWalled:
             # Youtube, members only
             async with aiohttp.ClientSession() as session:
-                info_dict = await holodex_req(
-                    session, "videos/", url_param=stream_url[-11:], query_params={}
+                info_dict = await aio.wait_for(
+                    holodex_req(
+                        session, "videos/", url_param=stream_url[-11:], query_params={}
+                    ),
+                    timeout=15,
                 )
                 platform = "holodex"
 
