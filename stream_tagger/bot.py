@@ -33,7 +33,7 @@ class TaggerBot(cm.Bot):
     async def on_ready(self):
         logger.info("Ready.")
 
-    def is_admin(self, member: dc.Member | dc.User) -> bool:
+    def is_admin(self, member: dc.Member | dc.User, ctx: cm.Context | str) -> bool:
         if isinstance(member, dc.User):
             logger.warning(f"{member} was a User, not a Member.")
             return False
@@ -45,12 +45,15 @@ class TaggerBot(cm.Bot):
             "admin_member": member.id in admins,
             "owner": member.id == self.owner_id,
         }
-        logger.info(permission_oks)
+        if isinstance(ctx, cm.Context) and ctx.invoked_with:
+            logger.info((ctx.invoked_with, permission_oks))
+        else:
+            logger.info((ctx, permission_oks))
         return any(permission_oks.values())
 
     @staticmethod
     def check_perm(ctx: cm.Context["TaggerBot"]) -> bool:
-        return ctx.bot.is_admin(ctx.author)
+        return ctx.bot.is_admin(ctx.author, ctx)
 
     @staticmethod
     def prefix_of(
