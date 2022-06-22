@@ -61,7 +61,10 @@ class TaggerBot(cm.Bot):
 
     @staticmethod
     def check_perm(ctx: cm.Context["TaggerBot"]) -> bool:
-        return ctx.bot.is_admin(ctx.author, ctx)
+        if ctx.interaction:
+            return True
+        else:
+            return ctx.bot.is_admin(ctx.author, ctx)
 
     @staticmethod
     def prefix_of(

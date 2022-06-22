@@ -29,9 +29,10 @@ class Settings(cm.Cog):
     @cm.hybrid_group(
         name="settings",
         invoke_without_command=True,
-        default_permissions=admin_def_perms,
+        default_permissions=None,
     )
     async def settings(self, ctx: cm.Context["TaggerBot"]):
+        "Per server settings"
         assert ctx.bot.help_command
         ctx_help = ctx.bot.help_command.copy()
         ctx_help.context = ctx
@@ -73,10 +74,10 @@ class Settings(cm.Cog):
             f"\n`{', '.join(admin_names) if admin_names else 'No one.'}`"
         )
 
-    @settings.command(name="quiet")
+    @settings.command(name="quiet", default_permissions=admin_def_perms)
     @ac.describe(be_quiet='"True" for quiet')
     async def quiet(self, ctx: cm.Context, be_quiet: bool):
-        "Quiet mode, suitable to be used with another tagger bot. The bot will not post emojis. `False` by default."
+        "Quiet mode, suitable to be used with another tagger bot. The bot will not post emojis."
         assert ctx.guild
         self.configs["quiet", ctx.guild.id] = (be_quiet,)
         await ctx.send("Set.")
@@ -84,11 +85,9 @@ class Settings(cm.Cog):
     @settings.command(
         name="default_format",
         alias="default format",
-        brief="The default format for the tags output.",
+        brief='The default format for the tags output. Default is "alternative"',
     )
-    async def default_format(
-        self, ctx: cm.Context["TaggerBot"], format: TagStyles
-    ):
+    async def default_format(self, ctx: cm.Context["TaggerBot"], format: TagStyles):
         """Change the default format of the `tags` command.
         Possible formats:
         * alternative

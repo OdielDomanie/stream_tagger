@@ -195,7 +195,9 @@ def get_chns_from_name(
 def get_all_chns_from_name(
     q_name: str,
 ) -> Generator[tuple[str, tuple[str, ...], str, str | None], None, None]:
-    "return the channel id, channel urls, channel name and en name. Raise KeyError if not found."
+    """return the channel id, channel urls, channel name and en name.
+    Better fits are yielded first.
+    Raise KeyError if not found."""
 
     results = set()
     # First check if a word starts with the query
@@ -218,8 +220,6 @@ def get_all_chns_from_name(
             try:
                 results.remove(result)
             except KeyError:
-                pass
-            else:
                 yield result
 
 

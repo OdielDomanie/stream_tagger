@@ -102,6 +102,7 @@ class TagDatabase:
         limit: int = 1_000,
         show_hidden=False,
         order: Literal["ASC", "DESC"] = "ASC",
+        min_votes=0,
     ) -> list[Tag_t]:  # list[tuple[int, str, int, int, int]]:
         "Returns a list of tuples of timestamp, text, votes, msg_id, and hierarchy."
         start, end = int(start), int(end)
@@ -112,17 +113,17 @@ class TagDatabase:
             cur.execute(
                 f"""SELECT timestamp_, message, votes, msg_id, hierarchy FROM {self.TABLE_NAME}
                 WHERE guild=? AND timestamp_ BETWEEN ? AND ? AND author=?
-                AND (hidden IS FALSE OR hidden=?)
+                AND (hidden IS FALSE OR hidden=?) AND votes>=?
                 ORDER BY timestamp_ {order} LIMIT {limit}""",
-                (guild_id, start, end, author_id, show_hidden),
+                (guild_id, start, end, author_id, show_hidden, min_votes),
             )
         else:
             cur.execute(
                 f"""SELECT timestamp_, message, votes, msg_id, hierarchy FROM {self.TABLE_NAME}
                 WHERE guild=? AND timestamp_ BETWEEN ? AND ?
-                AND (hidden IS FALSE OR hidden=?)
+                AND (hidden IS FALSE OR hidden=?) AND votes>=?
                 ORDER BY timestamp_ {order} LIMIT {limit}""",
-                (guild_id, start, end, show_hidden),
+                (guild_id, start, end, show_hidden, min_votes),
             )
         return list(Tag_t(*fetch) for fetch in cur.fetchall())
 

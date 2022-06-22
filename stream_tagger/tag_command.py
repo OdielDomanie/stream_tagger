@@ -91,11 +91,12 @@ class Tagging(cm.Cog):
         await self.tag(ctx.message, tag, ctx.author.id)
 
     ### Adjust
-    @cm.command()
-    async def adjust(self, ctx: cm.Context, amount: int):
-        "Adjust time of the last tag."
+    @cm.hybrid_command()
+    @ac.describe(offset="Negative for earlier, positive for later in time.")
+    async def adjust(self, ctx: cm.Context, offset: int):
+        "Adjust time of the last tag. Cumulative."
         assert ctx.guild
-        assert abs(amount) <= 7200
+        assert abs(offset) <= 7200
         last_tags = self.tags.get_tags(
             ctx.guild.id,
             0,
@@ -106,14 +107,19 @@ class Tagging(cm.Cog):
         )
         if last_tags:
             og_ts, msg_id = last_tags[0][0], last_tags[0][3]
-            self.tags.update_time(msg_id, og_ts + amount)
+            self.tags.update_time(msg_id, og_ts + offset)
             # last_msg = await ctx.fetch_message(msg_id)
             # Permissions: Read message history, Add reactions
-            if not any(self.configs.get(("quiet", ctx.guild.id), ())):
-                try:
-                    await ctx.message.add_reaction("👍")
-                except dc.Forbidden:
-                    pass
+            if ctx.interaction:
+                await ctx.interaction.response.send_message(
+                    f"{offset} 👍", ephemeral=True
+                )
+            else:
+                if not any(self.configs.get(("quiet", ctx.guild.id), ())):
+                    try:
+                        await ctx.message.add_reaction("👍")
+                    except dc.Forbidden:
+                        pass
 
     @staticmethod
     def parse_ticks(content: str) -> tuple[str, int]:
@@ -207,11 +213,14 @@ class Tagging(cm.Cog):
         streams = self.guild_streams[
             it.guild_id,
         ]
+        # past streams in this channel
         ordered_streams = sorted(streams, key=lambda s: s.start_time, reverse=True)
-        chns = set(get_all_chns_from_name(curr))
+        # every channel that fits
+        chns = list(get_all_chns_from_name(curr))
         if not chns:
             return []
 
+        # result list
         pos_chns = []
         for stream in ordered_streams:
             if len(pos_chns) >= AUTOCOMP_LIM:
@@ -219,7 +228,7 @@ class Tagging(cm.Cog):
             for chn_id, chn_urls, name, en_name in chns:
                 en_name = en_name or ""
                 if (
-                    (curr in name or curr in en_name)
+                    (curr.lower() in name.lower() or curr.lower() in en_name.lower())
                     and stream.chn_url in chn_urls
                     and name not in pos_chns
                 ):
@@ -231,7 +240,9 @@ class Tagging(cm.Cog):
                 if len(pos_chns) >= AUTOCOMP_LIM:
                     break
                 en_name = en_name or ""
-                if (curr in name or curr in en_name) and name not in pos_chns:
+                if (
+                    curr.lower() in name.lower() or curr.lower() in en_name.lower()
+                ) and name not in pos_chns:
                     pos_chns.append(name)
 
         return [ac.Choice(name=name, value=name) for name in pos_chns]
@@ -258,32 +269,56 @@ class Tagging(cm.Cog):
 
     ### dump tags slash command
     @ac.command(name="tags")  # type: ignore
-    @ac.default_permissions(manage_guild=True)
+    @ac.default_permissions()
+    @ac.autocomplete(stream=stream_autocomp)  # type: ignore
+    @ac.describe(
+        stream="Stream url, channel url, or the streamer name.",
+    )
+    async def tags_appcommand(
+        self,
+        it: dc.Interaction,
+        stream: str,
+    ):
+        "Print out tags."
+        await it.response.defer(thinking=True)
+        try:
+            await self.tags_hybrid(it, stream)
+        except:
+            await it.delete_original_message()
+            await it.followup.send(
+                "Something went wrong, I couldn't do it 😖", ephemeral=True
+            )
+            raise
+
+    @ac.command(name="tags_advanced")  # type: ignore
+    @ac.default_permissions()
     @ac.autocomplete(stream=stream_autocomp, server=server_autocomp)  # type: ignore
     @ac.describe(
         stream="Stream url, channel url, or the streamer name.",
-        start_time="Only needed if the stream argument is not provided. See /help.",
+        start_time="For example: 19:00:00 (in UTC, today) or a unix timestamp.",
         duration="Use with `start_time`. Leave empty for until current time.",
-        style="How to format the tags.",
+        format='How to format the tags. Default is "alternative"',
         server="A server name or id to steal the tags from.",
         own="Only show my tags",
-        delete_last="Don't dump anything, just delete the last dump.",
+        delete_last="Don't print anything, just delete the last command.",
         offset="Offset the time stamps.",
+        min_stars="Minimum treshold for number of stars",
     )
-    async def tags_appcommand(
+    async def tags_advanced_appcommand(
         self,
         it: dc.Interaction,
         stream: Optional[str],
         start_time: Optional[str],
         duration: Optional[str],
-        style: Optional[TagStyles],
+        format: Optional[TagStyles],
         server: Optional[str],
         own: Optional[bool],
-        delete_last: Optional[bool],
-        offset: str = "0",
+        delete_last: Optional[Literal["true"]],
+        offset: int = 0,
+        min_stars: int = 0,
     ):
-        "Dump tags."
-        if not (stream or start_time or server):
+        "Print out tags, with more advanced options."
+        if not (stream or start_time or server or delete_last):
             await it.response.send_message(
                 "I need either a stream, or a start time, or another server.",
                 ephemeral=True,
@@ -296,20 +331,22 @@ class Tagging(cm.Cog):
             options.append("start=" + start_time)
         if duration:
             options.append("duration=" + duration)
-        if style:
-            options.append(style.value)
+        if format:
+            options.append(format.value)
         if server:
             options.append("server=" + server)
         if own:
             options.append("own")
         if delete_last:
             options.append("delete")
+        options.append(f"min_stars={min_stars}")
         options.append(f"offset={offset}")
 
         await it.response.defer(thinking=True)
         try:
             await self.tags_hybrid(it, *options)
         except:
+            await it.delete_original_message()
             await it.followup.send(
                 "Something went wrong, I couldn't do it 😖", ephemeral=True
             )
@@ -318,7 +355,7 @@ class Tagging(cm.Cog):
     ### dump tags
     @cm.command(name="tags", description=tags_desc)
     async def tags_command(self, ctx, *options: str):
-        "Dump the tags for a given stream url. See `help tags` for full options."
+        "Print the tags for a given stream url. See `help tags` for full options."
         await self.tags_hybrid(ctx, *options)
 
     async def tags_hybrid(
@@ -361,6 +398,8 @@ class Tagging(cm.Cog):
                                 guild_id = g.id
                                 break
                     if not guild_id:
+                        if isinstance(ctx_it, dc.Interaction):
+                            await ctx_it.delete_original_message()
                         await send("Invalid server name or server id.", ephemeral=True)
                         return
                     opts_dict["guild"] = guild_id
@@ -369,6 +408,8 @@ class Tagging(cm.Cog):
                 case offset if offset.startswith("offset="):
                     offset = int(offset[7:])
                     opts_dict["offset"] = offset
+                case duration if duration.startswith("min_stars="):
+                    opts_dict["min_stars"] = int(duration[10:])
                 case stream_url:
                     if stream_url.startswith("<") and stream_url.endswith(">"):
                         stream_url = stream_url[1:-1]
@@ -383,6 +424,12 @@ class Tagging(cm.Cog):
                     await msg.delete_original_message()
                 else:
                     await msg.delete()
+            if isinstance(ctx_it, dc.Interaction):
+                await ctx_it.delete_original_message()
+                await send(
+                    "Deleted the last tags command.",
+                    ephemeral=True,
+                )
             return
 
         stolen_stream = False
@@ -395,6 +442,7 @@ class Tagging(cm.Cog):
                         streams, key=lambda s: s.start_time, reverse=True
                     )
                     stolen_stream = streams_sorted[0]
+                    stream_url = stolen_stream.stream_url
                     opts_dict["start_time"] = stolen_stream.start_time
                     if "duration" not in opts_dict:
                         stolen_end_time = stolen_stream.end_time or time.time()
@@ -402,13 +450,21 @@ class Tagging(cm.Cog):
                             stolen_end_time - stolen_stream.start_time
                         )
                 else:
-                    await send(
-                        "That server has not specified a stream. Provide a stream name or a manual `start=` time.",
-                        ephemeral=True,
-                    )
+                    if isinstance(ctx_it, dc.Interaction):
+                        await ctx_it.delete_original_message()
+                        await send(
+                            "That server has not specified a stream. Provide a stream name or a manual start time.",
+                            ephemeral=True,
+                        )
+                    else:
+                        await send(
+                            "That server has not specified a stream. Provide a stream name or a manual `start=` time."
+                        )
                     return
 
             else:
+                if isinstance(ctx_it, dc.Interaction):
+                    await ctx_it.delete_original_message()
                 await send(
                     "I need either a stream name, or a manual `start=` time, or another server to steal from.",
                     ephemeral=True,
@@ -440,9 +496,13 @@ class Tagging(cm.Cog):
                 **opts_dict,
             )
         except ValueError:
-            await send("I couldn't find a stream 😖", ephemeral=True)
+            if isinstance(ctx_it, dc.Interaction):
+                await ctx_it.delete_original_message()
+            await send("I couldn't find the stream 😖", ephemeral=True)
             return
         except aio.TimeoutError:
+            if isinstance(ctx_it, dc.Interaction):
+                await ctx_it.delete_original_message()
             await send(
                 "Something went wrong, I think my connections are bad 🔌",
                 ephemeral=True,
@@ -450,10 +510,14 @@ class Tagging(cm.Cog):
             raise
         except Exception as e:
             logger.exception(e)
+            if isinstance(ctx_it, dc.Interaction):
+                await ctx_it.delete_original_message()
             await send("Something went wrong, I couldn't do it 😢", ephemeral=True)
             return
 
         if not tag_dump:
+            if isinstance(ctx_it, dc.Interaction):
+                await ctx_it.delete_original_message()
             await send("No tags found.", ephemeral=True)
             return
 
@@ -517,11 +581,14 @@ class Tagging(cm.Cog):
         Raises `ValueError` if the specified `stream_url` is not found.
         """
 
+        stream = None
         if stream_url:
             try:
-                stream: Stream = await get_stream(stream_url)
+                stream = await get_stream(stream_url)
             except AssertionError as e:
-                raise ValueError from e
+                if not start_time:
+                    raise ValueError from e
+        if stream:
             real_url = not stream.stream_url_temp and stream.stream_url
             if start_time:
                 start_time_ = start_time
@@ -534,7 +601,8 @@ class Tagging(cm.Cog):
             url_is_perm = not stream.stream_url_temp
         else:
             real_url = None
-            start_time_: int = start_time  # type: ignore
+            assert start_time
+            start_time_: int = start_time
             if duration:
                 end_time = start_time_ + duration
             else:
@@ -561,6 +629,7 @@ class Tagging(cm.Cog):
             author_id,
             url_is_perm=url_is_perm,
             offset=opts_dict.get("offset", 0),
+            min_stars=opts_dict.pop("min_stars", 0),
         )
         if not tags_text:
             return
@@ -578,6 +647,7 @@ class Tagging(cm.Cog):
         *,
         url_is_perm: bool,
         offset: int = 0,
+        min_stars=0,
     ) -> str | None:
         "Between the start and end, returns formatted string of the tags, or `None` if no tags found."
 
@@ -586,7 +656,9 @@ class Tagging(cm.Cog):
         else:
             limit = 1_000
 
-        tags = self.tags.get_tags(guild_id, start, end, author_id, limit=limit)
+        tags = self.tags.get_tags(
+            guild_id, start, end, author_id, limit=limit, min_votes=min_stars
+        )
 
         if len(tags) == 0:
             return None
@@ -626,30 +698,6 @@ class Tagging(cm.Cog):
                 adjusted_stars = lambda v: round(
                     math.log(round(v / (avg_votes + 1)) + 1, 2)  # visually cool
                 )
-                max_h = max(tag.hier for tag in tags)
-                # if max_h == 0:
-                #     for ts, text, vote, _, _ in tags:
-                #         ts += offset
-                #         relative_ts = ts - start
-                #         if style == "alternative":
-                #             line = (
-                #                 (
-                #                     f" [{td_to_str(relative_ts)}]({timestamp_link(stream_url, relative_ts)}) | "
-                #                     if stream_url and url_is_perm
-                #                     else f" {td_to_str(relative_ts)} | "
-                #                 )
-                #                 + text
-                #                 + (
-                #                     f" ({''.join(['⭐'] * adjusted_stars(vote))})"
-                #                     if vote
-                #                     else ""
-                #                 )
-                #             )
-                #         else:
-                #             escaped_text = discord.utils.remove_markdown(text)
-                #             line = f"{td_to_str(relative_ts, 'yt')} {text}"
-                #         lines.append(line)
-                # else:
                 dummy_first = Tag_t(..., ..., ..., ..., tags[0].hier)
                 dummy_last = Tag_t(..., ..., ..., ..., -1)
                 tags_d = list(itertools.chain([dummy_first], tags, [dummy_last]))
@@ -661,6 +709,7 @@ class Tagging(cm.Cog):
                     space_indent = curr_ind - max(curr_ind - prev_ind, 0)
                     ts = tag.ts + offset
                     relative_ts = ts - start
+                    adj_stars = adjusted_stars(tag.vote)
                     if style == "alternative":
                         line = (
                             (
@@ -669,11 +718,7 @@ class Tagging(cm.Cog):
                                 else f" `{td_to_str(relative_ts)}` | "
                             )
                             + tag.text.replace("`", "")
-                            + (
-                                f" ({''.join(['⭐'] * adjusted_stars(tag.vote))})"
-                                if tag.vote
-                                else ""
-                            )
+                            + (f" ({''.join(['⭐'] * adj_stars)})" if adj_stars else "")
                         )
                     else:
                         escaped_text = discord.utils.remove_markdown(tag.text)
@@ -716,6 +761,7 @@ class Tagging(cm.Cog):
         return "\n".join(lines)
 
     @cm.hybrid_command()
+    @ac.describe(days="Until how many days ago should the bot look")
     async def tags_from_history(self, ctx: cm.Context, days: int):
         "Load tags from this channel's history. Useful for loading tags made before adding this bot."
         if ctx.interaction:
