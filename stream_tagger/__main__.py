@@ -8,14 +8,6 @@ from . import DATABASE
 from .bot import TaggerBot
 
 
-# loggers = logging.getLogger("discord"), logging.getLogger("taggerbot")
-# handler = logging.StreamHandler()
-# handler.setFormatter(
-#     logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s")
-# )
-# for logger in loggers:
-#     logger.addHandler(handler)
-#     logger.setLevel(logging.INFO)
 root_logger = logging.getLogger()
 handler = logging.StreamHandler()
 handler.setFormatter(
@@ -28,6 +20,10 @@ root_logger.setLevel(logging.INFO)
 dotenv.load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+assert DISCORD_TOKEN
+TEST_GUILD = (
+    int(os.getenv("TEST_GUILD")) if os.getenv("TEST_GUILD") else None  # type:ignore
+)
 
 
 intents = dc.Intents()
@@ -37,6 +33,6 @@ intents.guilds = True
 intents.reactions = True
 intents.members = True
 
-bot = TaggerBot(intents=intents, database=DATABASE)
+bot = TaggerBot(intents=intents, database=DATABASE, test_guild=TEST_GUILD)
 
-bot.run(DISCORD_TOKEN)
+bot.run(DISCORD_TOKEN, log_handler=None)

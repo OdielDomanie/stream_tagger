@@ -14,12 +14,15 @@ logger = logging.getLogger("taggerbot")
 
 
 class TaggerBot(cm.Bot):
-    def __init__(self, *, intents: dc.Intents, database: str, **options):
+    def __init__(
+        self, *, intents: dc.Intents, database: str, test_guild: int | None, **options
+    ):
 
         super().__init__(self.prefix_of, intents=intents, **options)  # type: ignore
 
         self.database = database
         self.settings = Settings(self, database, self.check_perm)
+        self.test_guild = test_guild
 
     async def setup_hook(self) -> None:
         # aio.create_task(update_channels_list())  # Is useless rn.
@@ -31,6 +34,11 @@ class TaggerBot(cm.Bot):
             self.owner_id = (await self.application_info()).owner.id
 
     async def on_ready(self):
+        if self.test_guild:
+            guild = dc.Object(self.test_guild)
+        else:
+            guild = None
+        await self.tree.sync(guild=guild)
         logger.info("Ready.")
 
     def is_admin(self, member: dc.Member | dc.User, ctx: cm.Context | str) -> bool:
