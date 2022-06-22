@@ -102,3 +102,11 @@ Only "admin"s (or users with "Manage Server" permissions) can use the `settings`
 To add users or roles to the admin list, use `admin_add`, `admin_rem` and `admin_list` with user and role names or ids.
 
 You can use `help settings` to view help regarding all settings commands, or `help settings command` to view detailed help.
+
+## Hosting the bot
+
+With Python 3.10 minimum, `pip install git+https://github.com/OdielDomanie/stream_tagger.git`.
+
+Create a .env with `HOLODEX_TOKEN` and `DISCORD_TOKEN`.
+
+To run, `python -m stream_tagger`.
