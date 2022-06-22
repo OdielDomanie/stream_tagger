@@ -56,7 +56,7 @@ class TaggerBot(cm.Bot):
             "admin_member": member.id in admins,
             "owner": member.id == self.owner_id,
         }
-        if isinstance(ctx, cm.Context) and ctx.invoked_with:
+        if isinstance(ctx, cm.Context) and ctx.invoked_with != "help":
             logger.info((ctx.invoked_with, permission_oks))
         else:
             logger.info((ctx, permission_oks))
