@@ -74,7 +74,7 @@ class Settings(cm.Cog):
             f"\n`{', '.join(admin_names) if admin_names else 'No one.'}`"
         )
 
-    @settings.command(name="quiet", default_permissions=admin_def_perms)
+    @settings.command(name="quiet")
     @ac.describe(be_quiet='"True" for quiet')
     async def quiet(self, ctx: cm.Context, be_quiet: bool):
         "Quiet mode, suitable to be used with another tagger bot. The bot will not post emojis."
