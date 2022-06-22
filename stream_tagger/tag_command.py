@@ -86,8 +86,9 @@ class Tagging(cm.Cog):
         )
 
     ### tag command
-    @cm.command(name="tag", aliases=["t"])  # type: ignore
+    @cm.command(name="tag", aliases=["t"])
     async def t(self, ctx: cm.Context, *, tag: str):
+        "Create a tag. You can use ` (backtick) instead."
         await self.tag(ctx.message, tag, ctx.author.id)
 
     ### Adjust

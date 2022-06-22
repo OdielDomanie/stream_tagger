@@ -6,6 +6,7 @@ import discord as dc
 from discord.ext import commands as cm
 
 from .admin_config import Settings
+from .help_strings import bot_desc
 from .streams import update_channels_list
 from .tag_command import Tagging
 
@@ -18,7 +19,9 @@ class TaggerBot(cm.Bot):
         self, *, intents: dc.Intents, database: str, test_guild: int | None, **options
     ):
 
-        super().__init__(self.prefix_of, intents=intents, **options)  # type: ignore
+        super().__init__(
+            self.prefix_of, intents=intents, description=bot_desc, **options
+        )
 
         self.database = database
         self.settings = Settings(self, database, self.check_perm)
