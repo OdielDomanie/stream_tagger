@@ -28,7 +28,7 @@ class TaggerBot(cm.Bot):
         self.test_guild = test_guild
 
     async def setup_hook(self) -> None:
-        # aio.create_task(update_channels_list())  # Is useless rn.
+        aio.create_task(update_channels_list())
 
         await self.add_cog(self.settings)
         await self.add_cog(Tagging(self, self.database))
