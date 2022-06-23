@@ -110,3 +110,9 @@ With Python 3.10 minimum, `pip install git+https://github.com/OdielDomanie/strea
 Create a .env with `HOLODEX_TOKEN` and `DISCORD_TOKEN`.
 
 To run, `python -m stream_tagger`.
+
+---
+
+Most often, the video data is extracted directly. Some functionality is powered by Holodex API.
+Holodex API License: https://holodex.stoplight.io/docs/holodex/8166fcec5dbe2-license
+
