@@ -764,7 +764,7 @@ class Tagging(cm.Cog):
     @cm.hybrid_command()
     @ac.default_permissions()
     @ac.describe(days="Until how many days ago should the bot look")
-    async def tags_from_history(self, ctx: cm.Context, days: int):
+    async def load_old_tags(self, ctx: cm.Context, days: int):
         "Load tags from this channel's history. Useful for loading tags made before adding this bot."
         if ctx.interaction:
             await ctx.interaction.response.defer(thinking=True)
