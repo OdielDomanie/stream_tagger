@@ -23,6 +23,11 @@ channels_list = PersistentDict[str, tuple[tuple[str, ...], str, str | None]](
     CHANNELS_LIST_DB, "channnels_list", 24 * 60 * 60
 )
 
+# {chnd_id: ""}
+hidden_chns = PersistentDict[str, str](
+    CHANNELS_LIST_DB, "hidden_channels", 1 * 60
+)
+
 
 _exp_backoff = ExpBackoff()
 _next_req_at = 0
@@ -176,6 +181,10 @@ def get_chns_from_name(
 
     # First check if a word starts with the query
     for chn_id, tup in channels_list.items():
+
+        if chn_id in hidden_chns:
+            continue
+
         chn_urls, name, en_name = tup
         if any(
             word.lower().startswith(q_name.lower())
@@ -184,6 +193,10 @@ def get_chns_from_name(
             return chn_id, chn_urls, name, en_name
     # If not found, search query in string
     for chn_id, tup in channels_list.items():
+
+        if chn_id in hidden_chns:
+            continue
+
         chn_urls, name, en_name = tup
         if q_name.lower() in name.lower() or (
             en_name and q_name.lower() in en_name.lower()
@@ -202,6 +215,10 @@ def get_all_chns_from_name(
     results = set()
     # First check if a word starts with the query
     for chn_id, tup in channels_list.items():
+
+        if chn_id in hidden_chns:
+            continue
+
         chn_urls, name, en_name = tup
         if any(
             word.lower().startswith(q_name.lower())
@@ -212,6 +229,10 @@ def get_all_chns_from_name(
             results.add(result)
 
     for chn_id, tup in channels_list.items():
+
+        if chn_id in hidden_chns:
+            continue
+
         chn_urls, name, en_name = tup
         if q_name.lower() in name.lower() or (
             en_name and q_name.lower() in en_name.lower()
