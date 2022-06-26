@@ -291,7 +291,7 @@ class Tagging(cm.Cog):
             )
             raise
 
-    @ac.command(name="tags_advanced")  # type: ignore
+    @ac.command(name="tags-advanced")  # type: ignore
     @ac.default_permissions()
     @ac.autocomplete(stream=stream_autocomp, server=server_autocomp)  # type: ignore
     @ac.describe(
