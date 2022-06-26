@@ -75,6 +75,7 @@ class Settings(cm.Cog):
         )
 
     @settings.command(name="quiet")
+    @ac.default_permissions()
     @ac.describe(be_quiet='"True" for quiet')
     async def quiet(self, ctx: cm.Context, be_quiet: bool):
         "Quiet mode, suitable to be used with another tagger bot. The bot will not post emojis."
@@ -87,6 +88,7 @@ class Settings(cm.Cog):
         alias="default format",
         brief='The default format for the tags output. Default is "alternative"',
     )
+    @ac.default_permissions()
     async def default_format(self, ctx: cm.Context["TaggerBot"], format: TagStyles):
         """Change the default format of the `tags` command.
         Possible formats:
@@ -105,6 +107,7 @@ class Settings(cm.Cog):
         name="allow_bots",
         alias="allow bots",
     )
+    @ac.default_permissions()
     async def allow_bots(self, ctx: cm.Context["TaggerBot"], allow: bool):
         """Allow other bots to tag using me. False by default.
         `settings allow_bots True` or `False`."""
@@ -116,6 +119,7 @@ class Settings(cm.Cog):
         name="tags_limit",
         alias="tags limit",
     )
+    @ac.default_permissions()
     async def fetch_limit(self, ctx: cm.Context["TaggerBot"], limited: bool):
         """Limit the number of tags that can be output at one time,"
         just in case you accidently try to dump more than a thousand tags at once.
@@ -126,6 +130,7 @@ class Settings(cm.Cog):
         await ctx.send("Set.")
 
     @settings.command(name="prefix", with_app_command=False)
+    @ac.default_permissions()
     async def set_prefix(self, ctx: cm.Context["TaggerBot"], prefix: str):
         """Set the prefix for commands, like `!`. This doesn't affect the backtick.
         Mentioning me is always a valid prefix."""
@@ -135,6 +140,7 @@ class Settings(cm.Cog):
         await ctx.send("Set.")
 
     @settings.command(name="default_offset")
+    @ac.default_permissions()
     async def default_offset(self, ctx: cm.Context, default_offset: int = -20):
         "Change the default offset applied in this server. Default is -20."
         assert ctx.guild
@@ -142,6 +148,7 @@ class Settings(cm.Cog):
         await ctx.send(f"Set to {default_offset}")
 
     @settings.command(name="set_private")
+    @ac.default_permissions()
     async def set_private(self, ctx: cm.Context, private: bool):
         'Mark this text channel as private: Other servers can\'t "steal" the future tags made in this channel.'
         assert ctx.guild
