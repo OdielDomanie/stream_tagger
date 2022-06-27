@@ -57,7 +57,7 @@ If the bot doesn't work for a website that you want (eg. Twitter spaces, Niconic
 
 #### Advanced tags
 
-You can use `/tags_advanced` to access more options.
+You can use `/tags-advanced` to access more options.
 
 * `stream`: This is optional if you use `start_time` or `server` options.
 * `start_time`: Manually provide a start time. Either `13:00:00` in UTC today, or a Unix timestamp. 
@@ -77,7 +77,7 @@ To delete the last tag dump: `tags delete`
 
 ### Loading older tags
 
-You can use `/tags_from_history 2` to load tags from the last 2 days. Useful if you want the bot to load tags made before the bot joined.
+You can use `/load_old_tags 2` to load tags from the last 2 days. Useful if you want the bot to load tags made before the bot joined.
 
 ## Setup
 
