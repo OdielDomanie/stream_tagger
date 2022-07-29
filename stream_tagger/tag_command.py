@@ -252,6 +252,9 @@ class Tagging(cm.Cog):
         "Return server names."
         AUTOCOMP_LIM = 10  # Discord's limit is 25, but a lower limit looks better
 
+        if len(curr) < 4:
+            return []
+
         try:
             guild_id = int(curr)
         except ValueError:  # A name is being entered
@@ -550,7 +553,15 @@ class Tagging(cm.Cog):
             dc.Embed(color=EMBED_COLOR, description=embed_text)
             for embed_text in embed_texts
         ]
-        embeds[0].title = "Tags: " + stream.stream_url
+        if style == "alternative":
+            if "twitch.tv/" in stream.stream_url:
+                title = stream.info_dict["description"]
+            else:
+                title = stream.info_dict.get("fulltitle") or stream.info_dict["title"][:-17]
+            embeds[0].title = "Tags: " + title
+            embeds[0].url = stream.stream_url
+        else:
+            embeds[0].title = "Tags: " + stream.stream_url
 
         last_dump = set[dc.Message | dc.Interaction]()
         for embed in embeds:
