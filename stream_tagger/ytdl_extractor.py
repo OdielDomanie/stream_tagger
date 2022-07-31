@@ -43,6 +43,7 @@ def fetch_yt_metadata(
         "forcejson": True,
         "no_color": True,
         "cookiefile": ".cookies.txt",
+        "ignore_no_formats_error": True,
     }
 
     if "youtube.com/" in url:
