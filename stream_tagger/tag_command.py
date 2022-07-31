@@ -511,7 +511,7 @@ class Tagging(cm.Cog):
                 "Something went wrong, I think my connections are bad 🔌",
                 ephemeral=True,
             )
-            raise
+            return
         except Exception as e:
             logger.exception(e)
             if isinstance(ctx_it, dc.Interaction):
